@@ -305,10 +305,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })),
         settings: settingsData ? {
           password: settingsData.password || '',
-          quotePdfSettings: settingsData.quote_pdf_settings || defaultSettings.quotePdfSettings,
-          poPdfSettings: settingsData.po_pdf_settings || defaultSettings.poPdfSettings,
-          piPdfSettings: settingsData.pi_pdf_settings || defaultSettings.piPdfSettings,
-          taxInvoicePdfSettings: settingsData.tax_invoice_pdf_settings || defaultSettings.taxInvoicePdfSettings,
+          quotePdfSettings: settingsData.quote_pdf_settings
+            ? (typeof settingsData.quote_pdf_settings === 'string' ? JSON.parse(settingsData.quote_pdf_settings) : settingsData.quote_pdf_settings)
+            : defaultSettings.quotePdfSettings,
+          poPdfSettings: settingsData.po_pdf_settings
+            ? (typeof settingsData.po_pdf_settings === 'string' ? JSON.parse(settingsData.po_pdf_settings) : settingsData.po_pdf_settings)
+            : defaultSettings.poPdfSettings,
+          piPdfSettings: settingsData.pi_pdf_settings
+            ? (typeof settingsData.pi_pdf_settings === 'string' ? JSON.parse(settingsData.pi_pdf_settings) : settingsData.pi_pdf_settings)
+            : defaultSettings.piPdfSettings,
+          taxInvoicePdfSettings: settingsData.tax_invoice_pdf_settings
+            ? (typeof settingsData.tax_invoice_pdf_settings === 'string' ? JSON.parse(settingsData.tax_invoice_pdf_settings) : settingsData.tax_invoice_pdf_settings)
+            : defaultSettings.taxInvoicePdfSettings,
         } : defaultSettings,
       });
     } catch (error) {
@@ -344,7 +352,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Auth ───────────────────────────────────────────────────────────────────
   const login = async (email: string, password: string): Promise<boolean> => {
-    const { user } = await api.login(email, password);
+    const { token, user } = await api.login(email, password);
+    localStorage.setItem('crm_token', token);
     localStorage.setItem('crm_user', JSON.stringify(user));
     setCurrentUser(user);
     setIsAuthenticated(true);
@@ -353,6 +362,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    localStorage.removeItem('crm_token');
     localStorage.removeItem('crm_user');
     setIsAuthenticated(false);
     setCurrentUser(null);
@@ -583,6 +593,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (data.website !== undefined) updateData.website = data.website;
     if (data.companyAddress !== undefined) updateData.company_address = data.companyAddress;
     if (data.gstNumber !== undefined) updateData.gst_number = data.gstNumber;
+    if (data.gstSlab !== undefined) updateData.gst_slab = data.gstSlab;
     if (data.taxType !== undefined) updateData.tax_type = data.taxType;
     if (data.country !== undefined) updateData.country = data.country;
     if (data.state !== undefined) updateData.state = data.state;
@@ -993,7 +1004,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
     if (!currentUser) throw new Error('Not authenticated');
-    await api.changePassword(currentUser.id, currentPassword, newPassword);
+    await api.changePassword(currentPassword, newPassword);
     await updateSettings({ password: newPassword });
   };
 

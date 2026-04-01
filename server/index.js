@@ -244,6 +244,15 @@ app.put('/api/enquiries/:id', authMiddleware, async (req, res) => {
   }
 });
 
+app.delete('/api/enquiries/:id', authMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM enquiries WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── QUOTATIONS ────────────────────────────────────────────────────────────────
 app.get('/api/quotations', authMiddleware, async (req, res) => {
   try {
@@ -307,6 +316,7 @@ app.put('/api/quotations/:id', authMiddleware, async (req, res) => {
       company_name: data.company_name, contact_name: data.contact_name,
       email: data.email, mobile_number: data.mobile_number, website: data.website,
       company_address: data.company_address, gst_number: data.gst_number,
+      gst_slab: data.gst_slab,
       tax_type: data.tax_type, country: data.country, state: data.state,
       base_amount: data.base_amount, gst_amount: data.gst_amount, total_amount: data.total_amount,
     };

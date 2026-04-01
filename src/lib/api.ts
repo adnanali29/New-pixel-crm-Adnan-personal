@@ -4,10 +4,12 @@ const API_BASE = '/api';
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────────
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const token = localStorage.getItem('crm_token');
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
@@ -17,20 +19,22 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new Error(err.error || `Request failed: ${res.status}`);
   }
 
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text) return undefined as unknown as T;
+  return JSON.parse(text) as T;
 }
 
 // ── API methods ───────────────────────────────────────────────────────────────
 export const api = {
   // Auth
   login: (email: string, password: string) =>
-    request<{ user: { id: string; email: string; full_name: string } }>(
+    request<{ token: string; user: { id: string; email: string; full_name: string } }>(
       'POST', '/auth/login', { email, password }
     ),
   verifyToken: () =>
     request<{ valid: boolean }>('POST', '/auth/verify'),
-  changePassword: (userId: string, currentPassword: string, newPassword: string) =>
-    request<void>('POST', '/auth/change-password', { userId, currentPassword, newPassword }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>('POST', '/auth/change-password', { currentPassword, newPassword }),
 
   // Services
   getServices: () => request<any[]>('GET', '/services'),
