@@ -99,6 +99,16 @@ export default function Login() {
                 </div>
               </div>
 
+              <div className="flex items-center justify-between mt-1">
+                <button
+                  type="button"
+                  onClick={() => setError('Please contact the administrator (adnan@gmail.com) to reset your password.')}
+                  className="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                   {error}

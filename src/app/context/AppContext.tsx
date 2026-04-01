@@ -677,20 +677,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       })),
     });
 
-    const services: OrderService[] = quotation.items.map(item => ({
-      id: generateId(),
-      serviceId: item.serviceId,
-      subServiceId: item.subServiceId,
-      serviceName: item.serviceName,
-      subServiceName: item.subServiceName,
-      hsnCode: item.hsnCode,
-      quantity: item.quantity,
-      basePrice: item.basePrice,
-      gstRate: item.gstRate,
-      gstAmount: item.gstAmount,
-      totalPrice: item.totalPrice,
-      status: 'active' as const,
-    }));
+    // Use real DB UUIDs returned by the server so cancelOrderServices works correctly
+    const services: OrderService[] = (orderData.services || []).map(mapOrderService);
 
     await updateQuotation(quotationId, { convertedToOrder: true });
 
