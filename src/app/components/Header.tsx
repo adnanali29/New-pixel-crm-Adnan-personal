@@ -25,9 +25,9 @@ export default function Header() {
         {/* Logo */}
         <div className="flex items-center gap-3 min-w-fit cursor-pointer" onClick={() => navigate('/enquiry')}>
           <img
-            src="/insta-post.png"
+            src="/insta-post-cropped.png"
             alt="Pixel CRM"
-            className="h-10 w-auto object-contain rounded-md shadow-sm transition-transform hover:scale-105"
+            className="h-11 w-auto object-contain transition-transform hover:scale-105"
           />
           <div className="flex items-center gap-1">
             <span className="text-xl font-bold text-indigo-700 tracking-tight">PIXEL</span>

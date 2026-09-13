@@ -44,11 +44,11 @@ export default function Login() {
           {/* Header */}
           <div className="px-8 pt-10 pb-6 text-center" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}>
             <div className="flex justify-center mb-4">
-              <div className="bg-white rounded-2xl p-4 shadow-xl border border-indigo-100 flex items-center justify-center">
+              <div className="bg-white rounded-2xl p-2.5 shadow-2xl border border-white/40 flex items-center justify-center w-36 h-36">
                 <img
-                  src="/insta-post.png"
+                  src="/insta-post-cropped.png"
                   alt="Pixel CRM Logo"
-                  className="h-20 w-auto object-contain transition-transform hover:scale-105"
+                  className="w-full h-full object-contain transition-transform hover:scale-105"
                 />
               </div>
             </div>
