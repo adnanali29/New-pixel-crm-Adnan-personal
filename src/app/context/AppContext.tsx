@@ -548,7 +548,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const quoteData = await api.createQuotation({
       enquiry_id: enquiryId,
-      quote_number: generateQuoteNumber('QT'),
+      quote_number: generateQuoteNumber(state.quotations),
       company_name: enquiry.companyName,
       contact_name: enquiry.contactName,
       email: enquiry.email,
@@ -670,7 +670,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const orderData = await api.createOrder({
       quotation_id: quotationId,
-      order_number: generateOrderNumber(),
+      order_number: generateOrderNumber(state.orders),
       company_name: quotation.companyName,
       contact_name: quotation.contactName,
       poc_name: quotation.contactName,

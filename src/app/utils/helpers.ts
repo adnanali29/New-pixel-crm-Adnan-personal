@@ -89,19 +89,46 @@ const MONTH_CODES: Record<number, string> = {
   11: 'DC', // December
 };
 
-export const generateDocumentNumber = (prefix: string = 'PP', count: number = 1): string => {
+export const generateDocumentNumber = (prefix: string = 'PP', count: number = 6): string => {
   const now = new Date();
   const monthCode = MONTH_CODES[now.getMonth()] || 'SP';
-  const numStr = String(count).padStart(2, '0');
+  const seq = Math.max(6, count);
+  const numStr = String(seq).padStart(2, '0');
   return `${prefix}${monthCode}${numStr}`;
 };
 
-export const generateQuoteNumber = (count: number = 1): string => {
-  return generateDocumentNumber('PP', count);
+export const generateQuoteNumber = (existingQuotes: any[] = []): string => {
+  let maxSeq = 5; // Start sequence at 6 (PPSP06)
+  if (Array.isArray(existingQuotes)) {
+    existingQuotes.forEach(q => {
+      const num = typeof q === 'string' ? q : (q?.quoteNumber || q?.quote_number || '');
+      const match = num.match(/(\d+)$/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxSeq) {
+          maxSeq = val;
+        }
+      }
+    });
+  }
+  return generateDocumentNumber('PP', maxSeq + 1);
 };
 
-export const generateOrderNumber = (count: number = 1): string => {
-  return generateDocumentNumber('PP', count);
+export const generateOrderNumber = (existingOrders: any[] = []): string => {
+  let maxSeq = 5; // Start sequence at 6 (PPSP06)
+  if (Array.isArray(existingOrders)) {
+    existingOrders.forEach(o => {
+      const num = typeof o === 'string' ? o : (o?.orderNumber || o?.order_number || '');
+      const match = num.match(/(\d+)$/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxSeq) {
+          maxSeq = val;
+        }
+      }
+    });
+  }
+  return generateDocumentNumber('PP', maxSeq + 1);
 };
 
 export const recalculateOrderAmounts = (services: any[], gstSlab: number, taxType: 'Inclusive' | 'Exclusive') => {
