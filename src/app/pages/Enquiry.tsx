@@ -1,13 +1,13 @@
-import React, { useState, useRef } from 'react';
-import { Plus, Upload, Download, Edit2, ArrowRight, XCircle, RotateCcw, Trash2, FileText, ChevronDown, ArrowUpRight, TrendingUp, Clock, DollarSign, Loader2 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Upload, Download, Edit2, ArrowRight, XCircle, RotateCcw, Trash2, FileText, ChevronDown, ArrowUpRight, TrendingUp, Clock, DollarSign, Loader2, Users, CheckCircle2, Search } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useToast } from '../context/ToastContext';
-import { Enquiry, EnquiryService } from '../types/index';
+import { Enquiry, EnquiryService, Customer } from '../types/index';
 import StatCard from '../components/StatCard';
 import ServiceSelector from '../components/ServiceSelector';
 import { formatDate, formatCurrency, generateId } from '../utils/helpers';
 import { getCountries, getStatesForCountry } from '../utils/countryData';
-import { useNavigate } from 'react-router';
+import { useNavigate, useLocation } from 'react-router';
 
 const GST_SLABS = [0, 5, 18, 28];
 const SAMPLE_CSV = `date,contactName,companyName,mobileNumber,email,companyAddress,gstNumber,gstSlab,taxType,country,state,description
@@ -15,25 +15,46 @@ const SAMPLE_CSV = `date,contactName,companyName,mobileNumber,email,companyAddre
 2024-01-16,Jane Smith,XYZ Corp,8765432109,jane@xyz.com,"456 Park Street, Mumbai",,5,Inclusive,India,Maharashtra,Mobile app development`;
 
 interface EnquiryFormData {
-  date: string; contactName: string;
+  date: string;
+  contactName: string;
+  customerId?: string;
   services: EnquiryService[];
-  companyName: string; mobileNumber: string; website: string; email: string;
-  companyAddress: string; gstNumber: string; gstSlab: number; taxType: 'Inclusive' | 'Exclusive';
-  country: string; state: string; description: string;
+  companyName: string;
+  mobileNumber: string;
+  website: string;
+  email: string;
+  companyAddress: string;
+  gstNumber: string;
+  gstSlab: number;
+  taxType: 'Inclusive' | 'Exclusive';
+  country: string;
+  state: string;
+  description: string;
 }
 
 const emptyForm: EnquiryFormData = {
-  date: new Date().toISOString().split('T')[0], contactName: '',
-  services: [{ id: generateId(), serviceId: '', subServiceId: '' }],
-  companyName: '', mobileNumber: '', website: '', email: '',
-  companyAddress: '', gstNumber: '', gstSlab: 18, taxType: 'Exclusive',
-  country: 'India', state: '', description: '',
+  date: new Date().toISOString().split('T')[0],
+  contactName: '',
+  services: [{ id: generateId(), serviceId: '', subServiceId: '', projectName: '' }],
+  companyName: '',
+  mobileNumber: '',
+  website: '',
+  email: '',
+  companyAddress: '',
+  gstNumber: '',
+  gstSlab: 18,
+  taxType: 'Exclusive',
+  country: 'India',
+  state: '',
+  description: '',
 };
 
 export default function EnquiryPage() {
-  const { enquiries, addEnquiry, updateEnquiry, deadEnquiry, restoreEnquiry, services } = useApp();
+  const { enquiries = [], addEnquiry, updateEnquiry, deadEnquiry, restoreEnquiry, services = [], customers = [] } = useApp();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [tab, setTab] = useState<'active' | 'dead'>('active');
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -41,8 +62,10 @@ export default function EnquiryPage() {
   const [detailId, setDetailId] = useState<string | null>(null);
   const [convertId, setConvertId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [actionId, setActionId] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Customer Autocomplete Suggestions state
+  const [custSearch, setCustSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const activeEnquiries = enquiries.filter(e => e.status === 'active' && !e.convertedToQuote);
   const deadEnquiries = enquiries.filter(e => e.status === 'dead');
@@ -51,11 +74,20 @@ export default function EnquiryPage() {
   const countries = getCountries();
 
   const conversionRate = enquiries.length > 0 ? ((converted.length / enquiries.length) * 100).toFixed(1) : 0;
-  const potentialValue = activeEnquiries.length * 15000; // Estimated potential pipeline value
+  const potentialValue = activeEnquiries.length * 15000;
+
+  // Preselect customer if coming from Customers page
+  useEffect(() => {
+    if (location.state?.preselectCustomer) {
+      selectCustomer(location.state.preselectCustomer);
+      setShowForm(true);
+    }
+  }, [location.state]);
 
   function openAdd() {
     setEditId(null);
-    setForm({ ...emptyForm, services: [{ id: generateId(), serviceId: '', subServiceId: '' }] });
+    setForm({ ...emptyForm, services: [{ id: generateId(), serviceId: '', subServiceId: '', projectName: '' }] });
+    setCustSearch('');
     setShowForm(true);
   }
 
@@ -64,43 +96,81 @@ export default function EnquiryPage() {
     const svcList: EnquiryService[] =
       e.services && e.services.length > 0
         ? e.services
-        : [{ id: generateId(), serviceId: e.serviceId || '', subServiceId: e.subServiceId || '' }];
+        : [{ id: generateId(), serviceId: e.serviceId || '', subServiceId: e.subServiceId || '', projectName: '' }];
     setForm({
-      date: e.date, contactName: e.contactName,
+      date: e.date,
+      contactName: e.contactName,
+      customerId: e.customerId,
       services: svcList,
-      companyName: e.companyName, mobileNumber: e.mobileNumber,
-      website: e.website || '', email: e.email,
-      companyAddress: e.companyAddress, gstNumber: e.gstNumber || '',
-      gstSlab: e.gstSlab, taxType: e.taxType, country: e.country,
-      state: e.state, description: e.description,
+      companyName: e.companyName,
+      mobileNumber: e.mobileNumber,
+      website: e.website || '',
+      email: e.email,
+      companyAddress: e.companyAddress,
+      gstNumber: e.gstNumber || '',
+      gstSlab: e.gstSlab,
+      taxType: e.taxType,
+      country: e.country,
+      state: e.state,
+      description: e.description,
     });
+    setCustSearch(e.companyName);
     setShowForm(true);
   }
 
+  function selectCustomer(c: Customer) {
+    setForm(p => ({
+      ...p,
+      customerId: c.id,
+      companyName: c.companyName,
+      contactName: c.pocName,
+      email: c.companyEmail || '',
+      mobileNumber: c.companyNumber || '',
+      companyAddress: c.companyAddress || '',
+      website: c.website || '',
+      gstNumber: c.gstNumber || '',
+      gstSlab: c.gstSlab || 18,
+      taxType: c.taxType || 'Exclusive',
+      country: c.country || 'India',
+      state: c.state || '',
+    }));
+    setCustSearch(c.companyName);
+    setShowSuggestions(false);
+    showToast(`Customer "${c.companyName}" details auto-filled!`);
+  }
+
   function addServiceRow() {
-    setForm(p => ({ ...p, services: [...p.services, { id: generateId(), serviceId: '', subServiceId: '' }] }));
+    setForm(p => ({ ...p, services: [...p.services, { id: generateId(), serviceId: '', subServiceId: '', projectName: '' }] }));
   }
 
   function removeServiceRow(idx: number) {
     setForm(p => ({ ...p, services: p.services.filter((_, i) => i !== idx) }));
   }
 
-  function updateServiceRow(idx: number, serviceId: string, subServiceId: string) {
+  function updateServiceRow(idx: number, serviceId: string, subServiceId: string, projectName?: string) {
     setForm(p => ({
       ...p,
-      services: p.services.map((s, i) => i === idx ? { ...s, serviceId, subServiceId } : s),
+      services: p.services.map((s, i) => i === idx ? { ...s, serviceId, subServiceId, projectName } : s),
     }));
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.companyName) {
+      showToast('Please specify Customer / Company details', 'error');
+      return;
+    }
+    const finalForm = {
+      ...form,
+      contactName: form.contactName || form.companyName,
+    };
     setSaving(true);
     try {
       if (editId) {
-        await updateEnquiry(editId, { ...form });
+        await updateEnquiry(editId, finalForm);
         showToast('Enquiry updated successfully');
       } else {
-        await addEnquiry({ ...form });
+        await addEnquiry(finalForm);
         showToast('Enquiry created successfully');
       }
       setShowForm(false);
@@ -111,341 +181,325 @@ export default function EnquiryPage() {
     }
   }
 
-  function handleDownloadSample() {
-    const blob = new Blob([SAMPLE_CSV], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'enquiry_sample.csv'; a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function handleUploadCSV(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const text = ev.target?.result as string;
-      const lines = text.split('\n').slice(1);
-      for (const line of lines) {
-        const [date, contactName, companyName, mobileNumber, email, companyAddress, gstNumber, gstSlab, taxType, country, state, description] = line.split(',');
-        if (companyName && contactName) {
-          try {
-            await addEnquiry({
-              date: date?.trim() || new Date().toISOString().split('T')[0],
-              contactName: contactName?.trim() || '',
-              services: [{ id: generateId(), serviceId: '', subServiceId: '' }],
-              companyName: companyName?.trim() || '',
-              mobileNumber: mobileNumber?.trim() || '',
-              website: '',
-              email: email?.trim() || '',
-              companyAddress: companyAddress?.replace(/"/g, '').trim() || '',
-              gstNumber: gstNumber?.trim() || '',
-              gstSlab: parseInt(gstSlab?.trim() || '18') || 18,
-              taxType: (taxType?.trim() as any) || 'Exclusive',
-              country: country?.trim() || 'India',
-              state: state?.trim() || '',
-              description: description?.trim() || '',
-            });
-          } catch (err) {
-            console.error('Error adding enquiry from CSV:', err);
-          }
-        }
-      }
-    };
-    reader.readAsText(file);
-    if (fileRef.current) fileRef.current.value = '';
-  }
-
-  function getServiceLabel(enq: Enquiry) {
-    const svcList = enq.services && enq.services.length > 0
-      ? enq.services
-      : enq.serviceId ? [{ serviceId: enq.serviceId, subServiceId: enq.subServiceId || '' }] : [];
-    if (svcList.length === 0) return '—';
-    const first = svcList[0];
-    const svc = services.find(s => s.id === first.serviceId);
-    const sub = svc?.subCategories.find(sc => sc.id === first.subServiceId);
-    const label = svc ? `${svc.name}${sub ? ` / ${sub.name}` : ''}` : '—';
-    return svcList.length > 1 ? `${label} +${svcList.length - 1}` : label;
-  }
-
   const detailEnquiry = enquiries.find(e => e.id === detailId);
   const convertEnquiry = enquiries.find(e => e.id === convertId);
 
+  // Suggestions for Customer Autocomplete
+  const matchingCustomers = customers.filter(c =>
+    custSearch.trim() !== '' && (
+      c.companyName.toLowerCase().includes(custSearch.toLowerCase()) ||
+      c.pocName.toLowerCase().includes(custSearch.toLowerCase()) ||
+      (c.companyNumber && c.companyNumber.includes(custSearch))
+    )
+  );
+
   return (
     <div className="space-y-6">
-      {/* Title Bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-4 flex-wrap">
-          <h1 className="text-2xl font-bold text-slate-800">Enquiry</h1>
-          <div className="flex rounded-lg overflow-hidden border border-slate-200">
-            <button onClick={() => setTab('active')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${tab === 'active' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-              Active ({activeEnquiries.length})
-            </button>
-            <button onClick={() => setTab('dead')} className={`px-4 py-1.5 text-sm font-medium transition-colors ${tab === 'dead' ? 'bg-red-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}>
-              Dead ({deadEnquiries.length})
-            </button>
-          </div>
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Enquiries</h1>
+          <p className="text-slate-500 text-sm">Manage sales enquiries and project requirements</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <input ref={fileRef} type="file" accept=".csv" onChange={handleUploadCSV} className="hidden" />
-          <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">
-            <Upload size={15} /> Upload CSV
-          </button>
-          <button onClick={handleDownloadSample} className="flex items-center gap-1.5 px-3 py-2 text-sm border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors">
-            <Download size={15} /> Sample CSV
-          </button>
-          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium shadow-sm">
-            <Plus size={16} /> Add Enquiry
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg shadow-sm transition-all text-sm"
+          >
+            <Plus size={18} />
+            Add New Enquiry
           </button>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Enquiries"
-          value={enquiries.length}
-          icon={<FileText size={20} />}
-          borderColor="#4F46E5"
-          bgColor="#EEF2FF"
-          textColor="#4F46E5"
-          subtitle="All incoming leads"
-        />
-        <StatCard
-          label="Active"
-          value={activeEnquiries.length}
-          icon={<Clock size={20} />}
-          borderColor="#059669"
-          bgColor="#ECFDF5"
-          textColor="#059669"
-          subtitle="Currently in pipeline"
-        />
-        <StatCard
-          label="Dead / Lost"
-          value={deadEnquiries.length}
-          icon={<XCircle size={20} />}
-          borderColor="#EF4444"
-          bgColor="#FEF2F2"
-          textColor="#EF4444"
-          subtitle="Unqualified leads"
-        />
-        <StatCard
-          label="Conversion"
-          value={`${conversionRate}%`}
-          icon={<ArrowUpRight size={20} />}
-          borderColor="#7C3AED"
-          bgColor="#F5F3FF"
-          textColor="#7C3AED"
-          subtitle={`${converted.length} converted`}
-        />
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard title="Active Enquiries" value={activeEnquiries.length.toString()} icon={Clock} color="blue" />
+        <StatCard title="Converted to Quotes" value={converted.length.toString()} icon={TrendingUp} color="green" />
+        <StatCard title="Conversion Rate" value={`${conversionRate}%`} icon={ArrowUpRight} color="purple" />
+        <StatCard title="Pipeline Estimate" value={formatCurrency(potentialValue)} icon={DollarSign} color="amber" />
       </div>
 
-      {/* Enquiry Table */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+      {/* Tabs */}
+      <div className="flex border-b border-slate-200">
+        <button
+          onClick={() => setTab('active')}
+          className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
+            tab === 'active'
+              ? 'border-indigo-600 text-indigo-700 bg-indigo-50/40'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Active Enquiries ({activeEnquiries.length})
+        </button>
+        <button
+          onClick={() => setTab('dead')}
+          className={`px-4 py-2.5 font-medium text-sm border-b-2 transition-all ${
+            tab === 'dead'
+              ? 'border-red-600 text-red-700 bg-red-50/40'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Dead Enquiries ({deadEnquiries.length})
+        </button>
+      </div>
+
+      {/* Enquiries Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Company</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Service</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+          <table className="w-full text-left text-sm">
+            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-4">Customer & Company</th>
+                <th className="px-6 py-4">Services & Project</th>
+                <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4">GST / Tax</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {displayed.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
-                    No {tab} enquiries found
+                  <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                    <FileText size={36} className="mx-auto mb-2 opacity-50" />
+                    <p className="font-medium text-slate-600">No enquiries found</p>
+                    <p className="text-xs text-slate-400">Add an enquiry to start tracking leads</p>
                   </td>
                 </tr>
-              ) : displayed.map((enq) => (
-                <tr
-                  key={enq.id}
-                  onClick={() => setDetailId(enq.id)}
-                  className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                >
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-slate-800 uppercase tracking-tight group-hover:text-indigo-600 transition-colors">{enq.companyName}</span>
-                      <span className="text-xs text-slate-400">{enq.email}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-600">{formatDate(enq.date)}</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[11px] font-medium border border-indigo-100">
-                        {getServiceLabel(enq)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-slate-600 font-medium">{enq.contactName}</span>
-                  </td>
-                  <td className="px-6 py-4 text-right" onClick={e => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-2">
-                      {tab === 'active' ? (
-                        <>
-                          <button onClick={() => openEdit(enq)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-indigo-100">
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => setConvertId(enq.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-[11px] font-bold rounded-lg transition-all border border-emerald-100 uppercase tracking-wide">
-                            <ArrowRight size={14} /> Quote
-                          </button>
-                          <button
-                            disabled={actionId === enq.id}
-                            onClick={async () => {
-                              setActionId(enq.id);
-                              try { await deadEnquiry(enq.id); showToast('Enquiry marked as dead', 'info'); }
-                              catch (err: any) { showToast(err.message || 'Failed', 'error'); }
-                              finally { setActionId(null); }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-red-100 disabled:opacity-50"
-                          >
-                            {actionId === enq.id ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                          </button>
-                        </>
-                      ) : (
+              ) : (
+                displayed.map(e => (
+                  <tr key={e.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-slate-800">{e.companyName}</div>
+                      <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                        <Users size={12} className="text-indigo-500" />
+                        {e.contactName} {e.mobileNumber ? `(${e.mobileNumber})` : ''}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="space-y-1">
+                        {(e.services && e.services.length > 0 ? e.services : [{ id: '', serviceId: e.serviceId || '', subServiceId: e.subServiceId || '' }]).map((svc, i) => {
+                          const s = services.find(x => x.id === svc.serviceId);
+                          const sc = s?.subCategories.find((c: any) => c.id === svc.subServiceId);
+                          return (
+                            <div key={i} className="text-xs text-slate-700 flex flex-wrap items-center gap-1">
+                              <span className="font-medium text-indigo-700">{s?.name || '—'}</span>
+                              {sc && <span className="text-slate-500">/ {sc.name}</span>}
+                              {svc.projectName && (
+                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[11px] font-semibold border border-slate-200">
+                                  Project: {svc.projectName}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-slate-600">{formatDate(e.date)}</td>
+                    <td className="px-6 py-4 text-xs text-slate-600">
+                      {e.gstSlab}% ({e.taxType})
+                      {e.gstNumber && <div className="text-[11px] text-slate-400 font-mono">{e.gstNumber}</div>}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
                         <button
-                          disabled={actionId === enq.id}
-                          onClick={async () => {
-                            setActionId(enq.id);
-                            try { await restoreEnquiry(enq.id); showToast('Enquiry restored successfully'); }
-                            catch (err: any) { showToast(err.message || 'Failed', 'error'); }
-                            finally { setActionId(null); }
-                          }}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 text-[11px] font-bold rounded-lg shadow-sm border border-indigo-100 hover:bg-indigo-100 transition-all disabled:opacity-50 uppercase tracking-wide"
+                          onClick={() => setDetailId(e.id)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded transition-colors"
                         >
-                          {actionId === enq.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />} Restore
+                          View
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {tab === 'active' && (
+                          <>
+                            <button
+                              onClick={() => setConvertId(e.id)}
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-medium rounded transition-colors flex items-center gap-1"
+                            >
+                              Quote <ArrowRight size={12} />
+                            </button>
+                            <button
+                              onClick={() => openEdit(e)}
+                              className="p-1 hover:bg-slate-100 text-slate-600 rounded transition-colors"
+                              title="Edit Enquiry"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={async () => {
+                                await deadEnquiry(e.id);
+                                showToast('Enquiry marked as dead.');
+                              }}
+                              className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors"
+                              title="Mark Dead"
+                            >
+                              <XCircle size={16} />
+                            </button>
+                          </>
+                        )}
+                        {tab === 'dead' && (
+                          <button
+                            onClick={async () => {
+                              await restoreEnquiry(e.id);
+                              showToast('Enquiry restored to active.');
+                            }}
+                            className="p-1 hover:bg-indigo-50 text-indigo-600 rounded transition-colors"
+                            title="Restore Enquiry"
+                          >
+                            <RotateCcw size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Add/Edit Form Modal */}
+      {/* Add / Edit Enquiry Modal */}
       {showForm && (
-        <Modal title={editId ? 'Edit Enquiry' : 'Add New Enquiry'} onClose={() => setShowForm(false)} wide>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Date *">
-                <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className={inputCls} required />
-              </Field>
-              <Field label="Contact Name *">
-                <input type="text" value={form.contactName} onChange={e => setForm(p => ({ ...p, contactName: e.target.value }))} className={inputCls} placeholder="Full name" required />
-              </Field>
-            </div>
+        <Modal title={editId ? "Edit Enquiry" : "Add New Enquiry"} onClose={() => setShowForm(false)} wide>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Step 1: Select Customer */}
+            <div className="p-4 bg-indigo-50/70 rounded-xl border border-indigo-100 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <Users size={15} /> 1. Customer Selection
+                </span>
+                {form.companyName && (
+                  <span className="text-xs text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Details Loaded
+                  </span>
+                )}
+              </div>
 
-            {/* Multi-service rows */}
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-slate-700">Services *</p>
-              {form.services.map((svc, idx) => (
-                <div key={svc.id} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <ServiceSelector
-                      serviceId={svc.serviceId}
-                      subServiceId={svc.subServiceId}
-                      onServiceChange={(sId, scId) => updateServiceRow(idx, sId, scId)}
-                      compact
-                    />
+              {/* Select Customer Dropdown */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  Select Saved Customer (Search by Company / POC Name) *
+                </label>
+                <select
+                  value={form.customerId || ''}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    if (selectedId === '') {
+                      setForm(p => ({ ...p, customerId: undefined, companyName: '', contactName: '' }));
+                    } else {
+                      const found = customers.find(c => c.id === selectedId);
+                      if (found) selectCustomer(found);
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 text-sm border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-300 bg-white font-medium text-slate-800 shadow-sm cursor-pointer"
+                  required
+                >
+                  <option value="">-- Choose a Saved Customer --</option>
+                  {customers.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.companyName} (POC: {c.pocName}) — {c.companyNumber || c.companyEmail || 'No contact'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Display Customer Details Card when customer selected */}
+              {form.companyName && (
+                <div className="p-4 bg-white rounded-xl border border-indigo-100 shadow-sm space-y-2 text-xs">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <span className="font-bold text-slate-800 text-sm">{form.companyName}</span>
+                      {form.contactName && <span className="text-slate-500 ml-2">(POC: <strong>{form.contactName}</strong>)</span>}
+                    </div>
+                    <span className="text-[11px] px-2.5 py-0.5 bg-emerald-50 text-emerald-700 rounded-full font-semibold border border-emerald-200 flex items-center gap-1">
+                      <CheckCircle2 size={12} /> Loaded from Customers
+                    </span>
                   </div>
-                  {form.services.length > 1 && (
-                    <button type="button" onClick={() => removeServiceRow(idx)} className="text-red-400 hover:text-red-600 flex-shrink-0">
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-slate-600 pt-2 border-t border-slate-100">
+                    <div><span className="text-slate-400">Mobile:</span> <strong>{form.mobileNumber || 'N/A'}</strong></div>
+                    <div><span className="text-slate-400">Email:</span> <strong>{form.email || 'N/A'}</strong></div>
+                    <div><span className="text-slate-400">Address:</span> <strong>{form.companyAddress || 'N/A'}</strong></div>
+                    <div><span className="text-slate-400">GSTIN:</span> <strong>{form.gstNumber || 'N/A'}</strong></div>
+                    <div><span className="text-slate-400">Location:</span> <strong>{form.state ? `${form.state}, ` : ''}{form.country}</strong></div>
+                    {form.website && <div><span className="text-slate-400">Website:</span> <strong>{form.website}</strong></div>}
+                  </div>
                 </div>
-              ))}
-              <button type="button" onClick={addServiceRow} className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 transition-colors">
-                <Plus size={14} /> Add another service
-              </button>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Company Name *">
-                <input type="text" value={form.companyName} onChange={e => setForm(p => ({ ...p, companyName: e.target.value }))} className={inputCls} placeholder="Company name" required />
-              </Field>
-              <Field label="Mobile Number *">
-                <input type="tel" value={form.mobileNumber} onChange={e => setForm(p => ({ ...p, mobileNumber: e.target.value }))} className={inputCls} placeholder="10-digit number" required />
-              </Field>
-              <Field label="Email Address *">
-                <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} className={inputCls} placeholder="email@company.com" required />
-              </Field>
-              <Field label="Website (Optional)">
-                <input type="url" value={form.website} onChange={e => setForm(p => ({ ...p, website: e.target.value }))} className={inputCls} placeholder="https://example.com" />
-              </Field>
-            </div>
-
-            <Field label="Company Address *">
-              <textarea value={form.companyAddress} onChange={e => setForm(p => ({ ...p, companyAddress: e.target.value }))} className={inputCls + ' resize-none'} rows={2} placeholder="Full address" required />
-            </Field>
-
+            {/* Step 2: GST & Tax Calculation Option */}
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-              <p className="text-sm font-semibold text-slate-700">GST Details</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label="GST Number">
-                  <input type="text" value={form.gstNumber} onChange={e => setForm(p => ({ ...p, gstNumber: e.target.value }))} className={inputCls} placeholder="15-digit GSTIN" maxLength={15} />
-                </Field>
+              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+                2. GST & Tax Options
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="GST Slab *">
-                  <div className="relative group">
-                    <select value={form.gstSlab} onChange={e => setForm(p => ({ ...p, gstSlab: parseInt(e.target.value) }))} className={inputCls + ' appearance-none pr-10 cursor-pointer'}>
-                      {GST_SLABS.map(s => <option key={s} value={s}>{s}%</option>)}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                      <ChevronDown size={18} />
-                    </div>
-                  </div>
+                  <select
+                    value={form.gstSlab}
+                    onChange={e => setForm(p => ({ ...p, gstSlab: parseInt(e.target.value) }))}
+                    className={inputCls + ' cursor-pointer'}
+                  >
+                    {GST_SLABS.map(s => <option key={s} value={s}>{s}% GST</option>)}
+                  </select>
                 </Field>
-                <Field label="Tax Type *">
-                  <div className="relative group">
-                    <select value={form.taxType} onChange={e => setForm(p => ({ ...p, taxType: e.target.value as any }))} className={inputCls + ' appearance-none pr-10 cursor-pointer'}>
-                      <option value="Exclusive">Exclusive (+ GST)</option>
-                      <option value="Inclusive">Inclusive (GST in price)</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                      <ChevronDown size={18} />
-                    </div>
-                  </div>
+                <Field label="Tax Calculation Type *">
+                  <select
+                    value={form.taxType}
+                    onChange={e => setForm(p => ({ ...p, taxType: e.target.value as any }))}
+                    className={inputCls + ' cursor-pointer'}
+                  >
+                    <option value="Exclusive">Exclusive (+ GST added to price)</option>
+                    <option value="Inclusive">Inclusive (GST included in price)</option>
+                  </select>
                 </Field>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Country *">
-                <div className="relative group">
-                  <select value={form.country} onChange={e => setForm(p => ({ ...p, country: e.target.value, state: '' }))} className={inputCls + ' appearance-none pr-10 cursor-pointer'} required>
-                    <option value="">Select Country</option>
-                    {countries.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                    <ChevronDown size={18} />
+            {/* Step 3: Services & Project Details Section */}
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  3. Project Details & Services *
+                </span>
+                <span className="text-xs text-slate-500">
+                  Date: <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="px-2 py-1 border rounded text-xs bg-white" required />
+                </span>
+              </div>
+
+              {/* Service rows */}
+              {form.services.map((svc, idx) => (
+                <div key={svc.id} className="p-3 bg-white rounded-lg border border-slate-200 space-y-2">
+                  <div className="flex justify-between items-center text-xs font-semibold text-slate-600">
+                    <span>Service Item #{idx + 1}</span>
+                    {form.services.length > 1 && (
+                      <button type="button" onClick={() => removeServiceRow(idx)} className="text-red-400 hover:text-red-600 flex items-center gap-1">
+                        <Trash2 size={14} /> Remove
+                      </button>
+                    )}
                   </div>
+                  <ServiceSelector
+                    serviceId={svc.serviceId}
+                    subServiceId={svc.subServiceId}
+                    projectName={svc.projectName}
+                    onServiceChange={(sId, scId, pName) => updateServiceRow(idx, sId, scId, pName)}
+                    compact
+                  />
                 </div>
-              </Field>
-              <Field label="State *">
-                <div className="relative group">
-                  <select value={form.state} onChange={e => setForm(p => ({ ...p, state: e.target.value }))} className={inputCls + ' appearance-none pr-10 cursor-pointer'} required>
-                    <option value="">Select State</option>
-                    {getStatesForCountry(form.country).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
-                    <ChevronDown size={18} />
-                  </div>
-                </div>
+              ))}
+
+              <button type="button" onClick={addServiceRow} className="flex items-center gap-1.5 text-sm text-indigo-600 font-medium hover:text-indigo-800 transition-colors">
+                <Plus size={16} /> Add another service to this enquiry
+              </button>
+
+              <Field label="Project Scope / Description">
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                  className={inputCls + ' resize-none'}
+                  rows={3}
+                  placeholder="Describe project requirements, milestones or specifications..."
+                />
               </Field>
             </div>
-
-            <Field label="Description">
-              <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} className={inputCls + ' resize-none'} rows={3} placeholder="Project details..." />
-            </Field>
 
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={() => setShowForm(false)} disabled={saving} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-sm disabled:opacity-50">Cancel</button>
@@ -481,12 +535,13 @@ export default function EnquiryPage() {
 function EnquiryDetailBody({ enquiry, services, onEdit, onConvert }: { enquiry: Enquiry; services: any[]; onEdit: () => void; onConvert: () => void }) {
   const svcList = enquiry.services && enquiry.services.length > 0
     ? enquiry.services
-    : enquiry.serviceId ? [{ id: '', serviceId: enquiry.serviceId, subServiceId: enquiry.subServiceId || '' }] : [];
+    : enquiry.serviceId ? [{ id: '', serviceId: enquiry.serviceId, subServiceId: enquiry.subServiceId || '', projectName: '' }] : [];
 
-  function svcLabel(svc: { serviceId: string; subServiceId?: string }) {
+  function svcLabel(svc: { serviceId: string; subServiceId?: string; projectName?: string }) {
     const s = services.find(x => x.id === svc.serviceId);
     const sc = s?.subCategories.find((c: any) => c.id === svc.subServiceId);
-    return s ? `${s.name}${sc ? ` / ${sc.name}` : ''}` : '—';
+    const pName = svc.projectName ? ` [Project: ${svc.projectName}]` : '';
+    return s ? `${s.name}${sc ? ` / ${sc.name}` : ''}${pName}` : '—';
   }
 
   return (
@@ -503,10 +558,10 @@ function EnquiryDetailBody({ enquiry, services, onEdit, onConvert }: { enquiry: 
         <Detail label="GST Number" value={enquiry.gstNumber || '—'} />
       </div>
       <div>
-        <p className="text-xs text-slate-500 mb-1">Services</p>
+        <p className="text-xs text-slate-500 mb-1 font-semibold">Services & Project Names</p>
         <div className="space-y-1">
           {svcList.length === 0 ? <p className="text-sm text-slate-400">—</p> : svcList.map((s, i) => (
-            <span key={i} className="inline-block mr-2 px-2 py-1 bg-indigo-50 text-indigo-700 rounded text-xs font-medium">{svcLabel(s)}</span>
+            <span key={i} className="inline-block mr-2 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium border border-indigo-100">{svcLabel(s)}</span>
           ))}
         </div>
       </div>
@@ -533,7 +588,7 @@ function ConvertToQuoteModal({ enquiry, onClose }: { enquiry: Enquiry; onClose: 
   const buildInitial = () => {
     const svcList = enquiry.services && enquiry.services.length > 0
       ? enquiry.services
-      : enquiry.serviceId ? [{ id: generateId(), serviceId: enquiry.serviceId, subServiceId: enquiry.subServiceId || '' }] : [{ id: generateId(), serviceId: '', subServiceId: '' }];
+      : enquiry.serviceId ? [{ id: generateId(), serviceId: enquiry.serviceId, subServiceId: enquiry.subServiceId || '', projectName: '' }] : [{ id: generateId(), serviceId: '', subServiceId: '', projectName: '' }];
 
     return svcList.map(es => {
       const svc = services.find(s => s.id === es.serviceId);
@@ -544,6 +599,7 @@ function ConvertToQuoteModal({ enquiry, onClose }: { enquiry: Enquiry; onClose: 
         subServiceId: es.subServiceId,
         serviceName: svc?.name || '',
         subServiceName: sub?.name || '',
+        projectName: es.projectName || '',
         hsnCode: svc?.hsnCode || '',
         quantity: 1,
         inputPrice: '',
@@ -579,18 +635,18 @@ function ConvertToQuoteModal({ enquiry, onClose }: { enquiry: Enquiry; onClose: 
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, gstRate, basePrice, gstAmount, totalPrice } : it));
   }
 
-  function updateService(idx: number, serviceId: string, subServiceId: string) {
+  function updateService(idx: number, serviceId: string, subServiceId: string, projectName?: string) {
     const svc = services.find(s => s.id === serviceId);
     const sub = svc?.subCategories.find(sc => sc.id === subServiceId);
     setItems(prev => prev.map((it, i) => i === idx ? {
-      ...it, serviceId, subServiceId,
+      ...it, serviceId, subServiceId, projectName,
       serviceName: svc?.name || '', subServiceName: sub?.name || '', hsnCode: svc?.hsnCode || ''
     } : it));
   }
 
   function addItem() {
     setItems(prev => [...prev, {
-      id: generateId(), serviceId: '', subServiceId: '', serviceName: '', subServiceName: '',
+      id: generateId(), serviceId: '', subServiceId: '', serviceName: '', subServiceName: '', projectName: '',
       hsnCode: '', quantity: 1, inputPrice: '', basePrice: 0, gstRate: enquiry.gstSlab, gstAmount: 0, totalPrice: 0,
     }]);
   }
@@ -602,7 +658,7 @@ function ConvertToQuoteModal({ enquiry, onClose }: { enquiry: Enquiry; onClose: 
   async function handleSubmit() {
     const quotationItems = items.map(it => ({
       id: it.id, serviceId: it.serviceId, subServiceId: it.subServiceId,
-      serviceName: it.serviceName, subServiceName: it.subServiceName,
+      serviceName: it.serviceName, subServiceName: it.subServiceName, projectName: it.projectName,
       hsnCode: it.hsnCode, quantity: it.quantity,
       basePrice: it.basePrice, gstRate: it.gstRate,
       gstAmount: it.gstAmount, totalPrice: it.totalPrice,
@@ -641,7 +697,8 @@ function ConvertToQuoteModal({ enquiry, onClose }: { enquiry: Enquiry; onClose: 
               <ServiceSelector
                 serviceId={item.serviceId}
                 subServiceId={item.subServiceId}
-                onServiceChange={(sId, scId) => updateService(idx, sId, scId)}
+                projectName={item.projectName}
+                onServiceChange={(sId, scId, pName) => updateService(idx, sId, scId, pName)}
                 compact
               />
               <div className="grid grid-cols-3 gap-3">

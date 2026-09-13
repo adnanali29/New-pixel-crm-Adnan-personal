@@ -74,16 +74,34 @@ export const numberToWords = (num: number): string => {
   return result;
 };
 
-export const generateQuoteNumber = (prefix: string = 'QT'): string => {
-  const now = new Date();
-  const year = now.getFullYear().toString().slice(-2);
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const rand = Math.floor(Math.random() * 9000) + 1000;
-  return `${prefix}-${year}${month}-${rand}`;
+const MONTH_CODES: Record<number, string> = {
+  0: 'JA', // January
+  1: 'FB', // February
+  2: 'MR', // March
+  3: 'AP', // April
+  4: 'MY', // May
+  5: 'JU', // June
+  6: 'JL', // July
+  7: 'AU', // August
+  8: 'SP', // September
+  9: 'OC', // October
+  10: 'NV', // November
+  11: 'DC', // December
 };
 
-export const generateOrderNumber = (): string => {
-  return generateQuoteNumber('ORD');
+export const generateDocumentNumber = (prefix: string = 'PP', count: number = 1): string => {
+  const now = new Date();
+  const monthCode = MONTH_CODES[now.getMonth()] || 'SP';
+  const numStr = String(count).padStart(2, '0');
+  return `${prefix}${monthCode}${numStr}`;
+};
+
+export const generateQuoteNumber = (count: number = 1): string => {
+  return generateDocumentNumber('PP', count);
+};
+
+export const generateOrderNumber = (count: number = 1): string => {
+  return generateDocumentNumber('PP', count);
 };
 
 export const recalculateOrderAmounts = (services: any[], gstSlab: number, taxType: 'Inclusive' | 'Exclusive') => {

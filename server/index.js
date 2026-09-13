@@ -395,11 +395,11 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
     for (const s of (orderServices || [])) {
       await client.query(
         `INSERT INTO order_services
-          (order_id, service_id, sub_service_id, service_name, sub_service_name,
+          (order_id, service_id, sub_service_id, service_name, sub_service_name, project_name,
            hsn_code, quantity, base_price, gst_rate, gst_amount, total_price, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'active')`,
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'active')`,
         [order.id, s.service_id, s.sub_service_id || null, s.service_name,
-         s.sub_service_name, s.hsn_code, s.quantity, s.base_price,
+         s.sub_service_name, s.project_name || s.projectName || null, s.hsn_code, s.quantity, s.base_price,
          s.gst_rate, s.gst_amount, s.total_price]
       );
     }
@@ -442,11 +442,11 @@ app.put('/api/orders/:id', authMiddleware, async (req, res) => {
       for (const s of orderServices) {
         await client.query(
           `INSERT INTO order_services
-            (order_id, service_id, sub_service_id, service_name, sub_service_name,
+            (order_id, service_id, sub_service_id, service_name, sub_service_name, project_name,
              hsn_code, quantity, base_price, gst_rate, gst_amount, total_price, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
           [req.params.id, s.service_id, s.sub_service_id || null, s.service_name,
-           s.sub_service_name, s.hsn_code, s.quantity, s.base_price,
+           s.sub_service_name, s.project_name || s.projectName || null, s.hsn_code, s.quantity, s.base_price,
            s.gst_rate, s.gst_amount, s.total_price, s.status || 'active']
         );
       }
@@ -576,6 +576,68 @@ app.put('/api/market-research/:id', authMiddleware, async (req, res) => {
 app.delete('/api/market-research/:id', authMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM market_research WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── CUSTOMERS ─────────────────────────────────────────────────────────────────
+app.get('/api/customers', authMiddleware, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM customers ORDER BY created_at DESC');
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/customers', authMiddleware, async (req, res) => {
+  const data = req.body;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO customers
+        (poc_name, company_name, company_email, company_number, company_address,
+         website, notes, gst_number, gst_slab, tax_type, country, state)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [data.poc_name || data.pocName, data.company_name || data.companyName,
+       data.company_email || data.companyEmail || '', data.company_number || data.companyNumber || '',
+       data.company_address || data.companyAddress || '', data.website || '',
+       data.notes || '', data.gst_number || data.gstNumber || '',
+       data.gst_slab || data.gstSlab || 18, data.tax_type || data.taxType || 'Exclusive',
+       data.country || 'India', data.state || '']
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/customers/:id', authMiddleware, async (req, res) => {
+  const data = req.body;
+  try {
+    await pool.query(
+      `UPDATE customers SET
+        poc_name = $1, company_name = $2, company_email = $3, company_number = $4,
+        company_address = $5, website = $6, notes = $7, gst_number = $8,
+        gst_slab = $9, tax_type = $10, country = $11, state = $12
+       WHERE id = $13`,
+      [data.poc_name || data.pocName, data.company_name || data.companyName,
+       data.company_email || data.companyEmail || '', data.company_number || data.companyNumber || '',
+       data.company_address || data.companyAddress || '', data.website || '',
+       data.notes || '', data.gst_number || data.gstNumber || '',
+       data.gst_slab || data.gstSlab || 18, data.tax_type || data.taxType || 'Exclusive',
+       data.country || 'India', data.state || '', req.params.id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/customers/:id', authMiddleware, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM customers WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

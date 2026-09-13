@@ -6,7 +6,7 @@ import StatCard from '../components/StatCard';
 import { formatDate, formatCurrency } from '../utils/helpers';
 
 export default function RevenuePage() {
-  const { orders } = useApp();
+  const { orders = [] } = useApp();
   const [showTransactions, setShowTransactions] = useState(false);
 
   // Revenue calculations

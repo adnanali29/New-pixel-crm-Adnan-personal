@@ -1,12 +1,25 @@
-export interface SubCategory {
+export interface Customer {
   id: string;
-  name: string;
+  pocName: string;
+  companyName: string;
+  companyEmail?: string;
+  companyNumber?: string;
+  companyAddress?: string;
+  website?: string;
+  notes?: string;
+  gstNumber?: string;
+  gstSlab?: number;
+  taxType?: 'Inclusive' | 'Exclusive';
+  country?: string;
+  state?: string;
+  createdAt: string;
 }
 
 export interface EnquiryService {
   id: string;
   serviceId: string;
   subServiceId: string;
+  projectName?: string;
 }
 
 export interface ServiceCategory {
@@ -21,6 +34,7 @@ export interface Enquiry {
   id: string;
   date: string;
   contactName: string;
+  customerId?: string;
   services: EnquiryService[];  // multiple services
   serviceId?: string;          // legacy / CSV compat
   subServiceId?: string;       // legacy / CSV compat
@@ -46,6 +60,7 @@ export interface QuotationItem {
   subServiceId: string;
   serviceName: string;
   subServiceName: string;
+  projectName?: string;
   hsnCode: string;
   quantity: number;
   basePrice: number;
@@ -85,6 +100,7 @@ export interface OrderService {
   subServiceId: string;
   serviceName: string;
   subServiceName: string;
+  projectName?: string;
   hsnCode: string;
   quantity: number;
   basePrice: number;

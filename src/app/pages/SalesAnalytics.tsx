@@ -20,7 +20,7 @@ function getMonthLabel(key: string) {
 }
 
 export default function SalesAnalyticsPage() {
-  const { enquiries, quotations, orders } = useApp();
+  const { enquiries = [], quotations = [], orders = [] } = useApp();
   const [selectedMonth, setSelectedMonth] = useState<string>('');
 
   // Generate last 12 months

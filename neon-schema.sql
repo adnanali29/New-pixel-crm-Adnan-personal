@@ -43,7 +43,26 @@ CREATE TABLE IF NOT EXISTS enquiry_services (
     id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
     enquiry_id      uuid REFERENCES enquiries(id) ON DELETE CASCADE,
     service_id      uuid REFERENCES services(id) ON DELETE SET NULL,
-    sub_service_id  uuid REFERENCES sub_categories(id) ON DELETE SET NULL
+    sub_service_id  uuid REFERENCES sub_categories(id) ON DELETE SET NULL,
+    project_name    text
+);
+
+-- 2.1 CUSTOMERS
+CREATE TABLE IF NOT EXISTS customers (
+    id              uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    poc_name        text NOT NULL,
+    company_name    text NOT NULL,
+    company_email   text,
+    company_number  text,
+    company_address text,
+    website         text,
+    notes           text,
+    gst_number      text,
+    gst_slab        numeric DEFAULT 18,
+    tax_type        text CHECK (tax_type IN ('Inclusive', 'Exclusive')) DEFAULT 'Exclusive',
+    country         text DEFAULT 'India',
+    state           text,
+    created_at      timestamptz DEFAULT now() NOT NULL
 );
 
 -- 3. QUOTATIONS
@@ -78,6 +97,7 @@ CREATE TABLE IF NOT EXISTS quotation_items (
     sub_service_id   uuid,
     service_name     text,
     sub_service_name text,
+    project_name     text,
     hsn_code         text,
     quantity         numeric DEFAULT 1,
     base_price       numeric DEFAULT 0,
@@ -124,6 +144,7 @@ CREATE TABLE IF NOT EXISTS order_services (
     sub_service_id   uuid,
     service_name     text,
     sub_service_name text,
+    project_name     text,
     hsn_code         text,
     quantity         numeric DEFAULT 1,
     base_price       numeric DEFAULT 0,

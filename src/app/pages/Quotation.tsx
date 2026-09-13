@@ -13,7 +13,7 @@ const GST_SLABS = [0, 5, 18, 28];
 const inputCls = "w-full border border-slate-200 rounded-lg px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 bg-white transition-all";
 
 export default function QuotationPage() {
-  const { quotations, updateQuotation, deadQuotation, restoreQuotation, addOrder, services, settings } = useApp();
+  const { quotations = [], updateQuotation, deadQuotation, restoreQuotation, deleteQuotation, deleteAllQuotations, addOrder, services = [], settings } = useApp();
   const { showToast } = useToast();
   const [tab, setTab] = useState<'active' | 'dead'>('active');
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -181,6 +181,21 @@ export default function QuotationPage() {
                             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-red-100 disabled:opacity-50"
                           >
                             {actionId === q.id ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
+                          </button>
+                          <button
+                            disabled={actionId === q.id}
+                            onClick={async () => {
+                              if (window.confirm(`Delete quotation ${q.quoteNumber}?`)) {
+                                setActionId(q.id);
+                                try { await deleteQuotation(q.id); showToast('Quotation deleted', 'info'); }
+                                catch (err: any) { showToast(err.message || 'Failed to delete', 'error'); }
+                                finally { setActionId(null); }
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-red-100 disabled:opacity-50"
+                            title="Delete Quotation"
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </>
                       ) : (

@@ -12,7 +12,7 @@ const inputCls = "w-full border border-slate-200 rounded-lg px-3 py-3 text-base 
 const GST_SLABS = [0, 5, 18, 28];
 
 export default function OrderPage() {
-  const { orders, updateOrder, markOrderPaid, cancelOrderServices, processRefund, deadOrder, restoreOrder, deleteOrder, settings, services } = useApp();
+  const { orders = [], quotations = [], updateOrder, markOrderPaid, cancelOrderServices, processRefund, deadOrder, restoreOrder, deleteOrder, deleteAllOrders, settings, services = [] } = useApp();
   const { showToast } = useToast();
   const [tab, setTab] = useState<'active' | 'dead'>('active');
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -155,9 +155,9 @@ export default function OrderPage() {
                 }
               }
             }}
-            onDownloadPO={() => generatePOPDF(order, settings.poPdfSettings)}
-            onDownloadPI={() => generatePIPDF(order, settings.piPdfSettings)}
-            onDownloadTax={() => generateTaxInvoicePDF(order, settings.taxInvoicePdfSettings)}
+            onDownloadPO={() => generatePOPDF(order, settings.poPdfSettings, quotations)}
+            onDownloadPI={() => generatePIPDF(order, settings.piPdfSettings, quotations)}
+            onDownloadTax={() => generateTaxInvoicePDF(order, settings.taxInvoicePdfSettings, quotations)}
           />
         ))}
 
@@ -178,7 +178,7 @@ export default function OrderPage() {
           order={detailOrder}
           onClose={() => setDetailId(null)}
           onEdit={() => { setDetailId(null); setEditId(detailId); }}
-          onPI={() => generatePIPDF(detailOrder, settings.piPdfSettings)}
+          onPI={() => generatePIPDF(detailOrder, settings.piPdfSettings, quotations)}
         />
       )}
 
@@ -698,11 +698,12 @@ function EditOrderModal({ order, onClose, onSave }: any) {
                 <ServiceSelector
                   serviceId={item.serviceId}
                   subServiceId={item.subServiceId}
-                  onServiceChange={(sId: string, scId: string) => {
+                  projectName={item.projectName}
+                  onServiceChange={(sId: string, scId: string, projName?: string) => {
                     const s = services.find((sv: any) => sv.id === sId);
                     const sc = s?.subCategories.find((c: any) => c.id === scId);
                     setItems((prev: any[]) => prev.map((it, i) => i === idx ? {
-                      ...it, serviceId: sId, subServiceId: scId,
+                      ...it, serviceId: sId, subServiceId: scId, projectName: projName !== undefined ? projName : (it.projectName || ''),
                       serviceName: s?.name || '', subServiceName: sc?.name || '', hsnCode: s?.hsnCode || ''
                     } : it));
                   }}

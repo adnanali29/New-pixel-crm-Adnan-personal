@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router';
 import Layout from './components/Layout';
 import Login from './pages/Login';
+import CustomerPage from './pages/Customer';
 import EnquiryPage from './pages/Enquiry';
 import QuotationPage from './pages/Quotation';
 import OrderPage from './pages/Order';
@@ -19,7 +20,8 @@ export const router = createBrowserRouter([
     path: '/',
     Component: Layout,
     children: [
-      { index: true, Component: () => React.createElement(Navigate, { to: '/enquiry', replace: true }) },
+      { index: true, element: React.createElement(Navigate, { to: '/enquiry', replace: true }) },
+      { path: 'customers', Component: CustomerPage },
       { path: 'enquiry', Component: EnquiryPage },
       { path: 'quotation', Component: QuotationPage },
       { path: 'order', Component: OrderPage },

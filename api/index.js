@@ -487,6 +487,54 @@ app.delete('/api/market-research/:id', asyncHandler(async (req, res) => {
 }));
 
 // ==========================================
+// CUSTOMERS
+// ==========================================
+app.get('/api/customers', asyncHandler(async (req, res) => {
+  const result = await pool.query(`SELECT * FROM customers ORDER BY created_at DESC`);
+  res.json(result.rows);
+}));
+
+app.post('/api/customers', asyncHandler(async (req, res) => {
+  const data = req.body;
+  const result = await pool.query(
+    `INSERT INTO customers
+      (poc_name, company_name, company_email, company_number, company_address,
+       website, notes, gst_number, gst_slab, tax_type, country, state)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+    [data.poc_name || data.pocName, data.company_name || data.companyName,
+     data.company_email || data.companyEmail || '', data.company_number || data.companyNumber || '',
+     data.company_address || data.companyAddress || '', data.website || '',
+     data.notes || '', data.gst_number || data.gstNumber || '',
+     data.gst_slab || data.gstSlab || 18, data.tax_type || data.taxType || 'Exclusive',
+     data.country || 'India', data.state || '']
+  );
+  res.json(result.rows[0]);
+}));
+
+app.put('/api/customers/:id', asyncHandler(async (req, res) => {
+  const data = req.body;
+  await pool.query(
+    `UPDATE customers SET
+      poc_name = $1, company_name = $2, company_email = $3, company_number = $4,
+      company_address = $5, website = $6, notes = $7, gst_number = $8,
+      gst_slab = $9, tax_type = $10, country = $11, state = $12
+     WHERE id = $13`,
+    [data.poc_name || data.pocName, data.company_name || data.companyName,
+     data.company_email || data.companyEmail || '', data.company_number || data.companyNumber || '',
+     data.company_address || data.companyAddress || '', data.website || '',
+     data.notes || '', data.gst_number || data.gstNumber || '',
+     data.gst_slab || data.gstSlab || 18, data.tax_type || data.taxType || 'Exclusive',
+     data.country || 'India', data.state || '', req.params.id]
+  );
+  res.json({ success: true });
+}));
+
+app.delete('/api/customers/:id', asyncHandler(async (req, res) => {
+  await pool.query(`DELETE FROM customers WHERE id = $1`, [req.params.id]);
+  res.json({ success: true });
+}));
+
+// ==========================================
 // SETTINGS
 // ==========================================
 app.get('/api/settings', asyncHandler(async (req, res) => {

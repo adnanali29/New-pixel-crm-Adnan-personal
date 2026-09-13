@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   ServiceCategory, SubCategory, Enquiry, EnquiryService, Quotation, QuotationItem,
-  Order, OrderService, Payment, RefundPayment, MarketCompany, AppSettings, PDFSettings
+  Order, OrderService, Payment, RefundPayment, MarketCompany, Customer, AppSettings, PDFSettings
 } from '../types/index';
 import { generateId, generateQuoteNumber, generateOrderNumber, calculateGST } from '../utils/helpers';
 import { api } from '../../lib/api';
@@ -18,6 +18,11 @@ interface AppContextType {
   addSubCategory: (serviceId: string, name: string) => Promise<SubCategory>;
   updateSubCategory: (serviceId: string, subId: string, name: string) => Promise<void>;
   deleteSubCategory: (serviceId: string, subId: string) => Promise<void>;
+
+  customers: Customer[];
+  addCustomer: (data: Omit<Customer, 'id' | 'createdAt'>) => Promise<Customer>;
+  updateCustomer: (id: string, data: Partial<Customer>) => Promise<void>;
+  deleteCustomer: (id: string) => Promise<void>;
 
   enquiries: Enquiry[];
   addEnquiry: (data: Omit<Enquiry, 'id' | 'createdAt' | 'status' | 'convertedToQuote'>) => Promise<Enquiry>;
@@ -116,6 +121,7 @@ const defaultSettings: AppSettings = {
 
 interface StoredState {
   services: ServiceCategory[];
+  customers: Customer[];
   enquiries: Enquiry[];
   quotations: Quotation[];
   orders: Order[];
@@ -130,6 +136,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string; full_name: string } | null>(null);
   const [state, setState] = useState<StoredState>({
     services: [],
+    customers: [],
     enquiries: [],
     quotations: [],
     orders: [],
@@ -144,6 +151,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     id: s.id,
     serviceId: s.service_id,
     subServiceId: s.sub_service_id || '',
+  });
+
+  const mapCustomer = (c: any): Customer => ({
+    id: c.id,
+    pocName: c.poc_name || c.pocName || '',
+    companyName: c.company_name || c.companyName || '',
+    companyEmail: c.company_email || c.companyEmail || '',
+    companyNumber: c.company_number || c.companyNumber || '',
+    companyAddress: c.company_address || c.companyAddress || '',
+    website: c.website || '',
+    notes: c.notes || '',
+    gstNumber: c.gst_number || c.gstNumber || '',
+    gstSlab: Number(c.gst_slab ?? c.gstSlab ?? 18),
+    taxType: c.tax_type || c.taxType || 'Exclusive',
+    country: c.country || 'India',
+    state: c.state || '',
+    createdAt: c.created_at || c.createdAt || new Date().toISOString(),
   });
 
   const mapQItem = (i: any): QuotationItem => ({
@@ -197,9 +221,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Fetch all data ─────────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
-      const [services, enquiries, quotations, orders, marketResearch, settingsData] =
+      const [services, customersData, enquiries, quotations, orders, marketResearch, settingsData] =
         await Promise.all([
           api.getServices(),
+          api.getCustomers().catch(() => []),
           api.getEnquiries(),
           api.getQuotations(),
           api.getOrders(),
@@ -215,6 +240,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           createdAt: s.created_at,
           subCategories: (s.subCategories || []).map((sc: any) => ({ id: sc.id, name: sc.name })),
         })),
+        customers: (customersData || []).map(mapCustomer),
         enquiries: (enquiries || []).map((e: any): Enquiry => ({
           id: e.id,
           date: e.date,
@@ -978,6 +1004,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
+  // ── Customers ──────────────────────────────────────────────────────────────
+  const addCustomer = async (data: Omit<Customer, 'id' | 'createdAt'>): Promise<Customer> => {
+    const raw = await api.createCustomer({
+      poc_name: data.pocName,
+      company_name: data.companyName,
+      company_email: data.companyEmail,
+      company_number: data.companyNumber,
+      company_address: data.companyAddress,
+      website: data.website,
+      notes: data.notes,
+      gst_number: data.gstNumber,
+      gst_slab: data.gstSlab,
+      tax_type: data.taxType,
+      country: data.country,
+      state: data.state,
+    });
+    const newCustomer = mapCustomer(raw);
+    setState(prev => ({ ...prev, customers: [newCustomer, ...(prev.customers || [])] }));
+    return newCustomer;
+  };
+
+  const updateCustomer = async (id: string, data: Partial<Customer>) => {
+    const updateData: any = {};
+    if (data.pocName) updateData.poc_name = data.pocName;
+    if (data.companyName) updateData.company_name = data.companyName;
+    if (data.companyEmail !== undefined) updateData.company_email = data.companyEmail;
+    if (data.companyNumber !== undefined) updateData.company_number = data.companyNumber;
+    if (data.companyAddress !== undefined) updateData.company_address = data.companyAddress;
+    if (data.website !== undefined) updateData.website = data.website;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.gstNumber !== undefined) updateData.gst_number = data.gstNumber;
+    if (data.gstSlab !== undefined) updateData.gst_slab = data.gstSlab;
+    if (data.taxType !== undefined) updateData.tax_type = data.taxType;
+    if (data.country !== undefined) updateData.country = data.country;
+    if (data.state !== undefined) updateData.state = data.state;
+    await api.updateCustomer(id, updateData);
+    setState(prev => ({
+      ...prev,
+      customers: (prev.customers || []).map(c => c.id === id ? { ...c, ...data } : c),
+    }));
+  };
+
+  const deleteCustomer = async (id: string) => {
+    await api.deleteCustomer(id);
+    setState(prev => ({
+      ...prev,
+      customers: (prev.customers || []).filter(c => c.id !== id),
+    }));
+  };
+
   // ── Settings ───────────────────────────────────────────────────────────────
   const updateSettings = async (data: Partial<AppSettings>) => {
     const updateData: any = {};
@@ -998,15 +1074,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value: AppContextType = {
     isAuthenticated, login, logout, currentUser,
-    services: state.services,
+    services: state.services || [],
     addService, updateService, addSubCategory, updateSubCategory, deleteSubCategory,
-    enquiries: state.enquiries,
+    customers: state.customers || [],
+    addCustomer, updateCustomer, deleteCustomer,
+    enquiries: state.enquiries || [],
     addEnquiry, updateEnquiry, deadEnquiry, restoreEnquiry, deleteEnquiry,
-    quotations: state.quotations,
+    quotations: state.quotations || [],
     addQuotation, updateQuotation, deadQuotation, restoreQuotation,
-    orders: state.orders,
+    orders: state.orders || [],
     addOrder, updateOrder, markOrderPaid, cancelOrderServices, processRefund, deadOrder, restoreOrder, restoreOrderService, deleteOrder,
-    marketResearch: state.marketResearch,
+    marketResearch: state.marketResearch || [],
     addMarketCompany, updateMarketCompany, deleteMarketCompany,
     settings: state.settings,
     updateSettings, changePassword,

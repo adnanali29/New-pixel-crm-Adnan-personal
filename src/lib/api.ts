@@ -59,12 +59,15 @@ export const api = {
   getQuotations: () => request<any[]>('GET', '/quotations'),
   createQuotation: (data: any) => request<any>('POST', '/quotations', data),
   updateQuotation: (id: string, data: any) => request<void>('PUT', `/quotations/${id}`, data),
+  deleteQuotation: (id: string) => request<void>('DELETE', `/quotations/${id}`),
+  deleteAllQuotations: () => request<void>('DELETE', '/quotations/all'),
 
   // Orders
   getOrders: () => request<any[]>('GET', '/orders'),
   createOrder: (data: any) => request<any>('POST', '/orders', data),
   updateOrder: (id: string, data: any) => request<void>('PUT', `/orders/${id}`, data),
   deleteOrder: (id: string) => request<void>('DELETE', `/orders/${id}`),
+  deleteAllOrders: () => request<void>('DELETE', '/orders/all'),
   createPayment: (orderId: string, data: any) =>
     request<any>('POST', `/orders/${orderId}/payments`, data),
   createRefund: (orderId: string, data: any) =>
@@ -83,6 +86,12 @@ export const api = {
     request<void>('PUT', `/market-research/${id}`, data),
   deleteMarketCompany: (id: string) =>
     request<void>('DELETE', `/market-research/${id}`),
+
+  // Customers
+  getCustomers: () => request<any[]>('GET', '/customers'),
+  createCustomer: (data: any) => request<any>('POST', '/customers', data),
+  updateCustomer: (id: string, data: any) => request<void>('PUT', `/customers/${id}`, data),
+  deleteCustomer: (id: string) => request<void>('DELETE', `/customers/${id}`),
 
   // Settings
   getSettings: () => request<any>('GET', '/settings'),

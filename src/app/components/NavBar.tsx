@@ -1,8 +1,9 @@
 import React from 'react';
 import { NavLink } from 'react-router';
-import { FileQuestion, FileText, ShoppingCart, TrendingUp, BarChart2, Search } from 'lucide-react';
+import { Users, FileQuestion, FileText, ShoppingCart, TrendingUp, BarChart2, Search } from 'lucide-react';
 
 const navItems = [
+  { label: 'Customers', path: '/customers', icon: Users },
   { label: 'Enquiry', path: '/enquiry', icon: FileQuestion },
   { label: 'Quotation', path: '/quotation', icon: FileText },
   { label: 'Order', path: '/order', icon: ShoppingCart },
