@@ -23,15 +23,13 @@ export default function Header() {
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
       <div className="max-w-screen-2xl mx-auto px-4 h-16 flex items-center gap-4">
         {/* Logo */}
-        <div className="flex items-center gap-2 min-w-fit cursor-pointer" onClick={() => navigate('/enquiry')}>
+        <div className="flex items-center gap-3 min-w-fit cursor-pointer" onClick={() => navigate('/enquiry')}>
           <img
-            src="https://ibb.co/gLn6jJLX"
+            src="/insta-post.png"
             alt="Pixel CRM"
-            className="h-8 w-auto object-contain"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            className="h-10 w-auto object-contain rounded-md shadow-sm transition-transform hover:scale-105"
           />
           <div className="flex items-center gap-1">
-            <BarChart3 className="text-indigo-600" size={22} />
             <span className="text-xl font-bold text-indigo-700 tracking-tight">PIXEL</span>
             <span className="text-xl font-bold text-slate-600 tracking-tight">CRM</span>
           </div>

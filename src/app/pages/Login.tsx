@@ -44,16 +44,15 @@ export default function Login() {
           {/* Header */}
           <div className="px-8 pt-10 pb-6 text-center" style={{ background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)' }}>
             <div className="flex justify-center mb-4">
-              <div className="bg-white rounded-2xl p-4 shadow-inner">
+              <div className="bg-white rounded-2xl p-4 shadow-xl border border-indigo-100 flex items-center justify-center">
                 <img
-                  src="https://i.ibb.co/8Cb3v5M/Insta-Posts-10.png"
+                  src="/insta-post.png"
                   alt="Pixel CRM Logo"
-                  className="h-16 w-auto object-contain"
+                  className="h-20 w-auto object-contain transition-transform hover:scale-105"
                 />
               </div>
             </div>
             <div className="flex items-center justify-center gap-2 mb-2">
-              <BarChart3 size={28} className="text-white" />
               <h1 className="text-3xl font-bold text-white tracking-tight">PIXEL CRM</h1>
             </div>
             <p className="text-indigo-200 text-sm">Customer Relationship Management</p>
