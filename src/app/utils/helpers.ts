@@ -77,61 +77,90 @@ export const numberToWords = (num: number): string => {
   return result;
 };
 
-const MONTH_CODES: Record<number, string> = {
+export const MONTH_CODES: Record<number, string> = {
   0: 'JA', // January
-  1: 'FB', // February
+  1: 'FE', // February
   2: 'MR', // March
   3: 'AP', // April
   4: 'MY', // May
   5: 'JU', // June
   6: 'JL', // July
   7: 'AU', // August
-  8: 'SP', // September
+  8: 'SE', // September
   9: 'OC', // October
-  10: 'NV', // November
-  11: 'DC', // December
+  10: 'NO', // November (PPNO01, PPNO02)
+  11: 'DE', // December
 };
 
-export const generateDocumentNumber = (prefix: string = 'PP', count: number = 6): string => {
-  const now = new Date();
-  const monthCode = MONTH_CODES[now.getMonth()] || 'SP';
-  const seq = Math.max(6, count);
+export const generateDocumentNumber = (prefix: string = 'PP', count: number = 1, date: Date = new Date()): string => {
+  const monthCode = MONTH_CODES[date.getMonth()] || 'OC';
+  const seq = Math.max(1, count);
   const numStr = String(seq).padStart(2, '0');
   return `${prefix}${monthCode}${numStr}`;
 };
 
-export const generateQuoteNumber = (existingQuotes: any[] = []): string => {
-  let maxSeq = 5; // Start sequence at 6 (PPSP06)
+export const generateQuoteNumber = (existingQuotes: any[] = [], date: Date = new Date()): string => {
+  const monthCode = MONTH_CODES[date.getMonth()] || 'OC';
+  let altMonthCode = '';
+  if (monthCode === 'NO') altMonthCode = '|NV';
+  else if (monthCode === 'SE') altMonthCode = '|SP';
+  else if (monthCode === 'FE') altMonthCode = '|FB';
+  else if (monthCode === 'DE') altMonthCode = '|DC';
+
+  const monthPattern = monthCode === 'OC' ? '(?:OC|0C)' : `(?:${monthCode}${altMonthCode})`;
+  const regex = new RegExp(`^PP${monthPattern}(\\d+)$`, 'i');
+
+  let maxSeq = 0;
   if (Array.isArray(existingQuotes)) {
     existingQuotes.forEach(q => {
       const num = typeof q === 'string' ? q : (q?.quoteNumber || q?.quote_number || '');
-      const match = num.match(/(\d+)$/);
+      if (!num) return;
+      const match = num.trim().match(regex);
       if (match) {
         const val = parseInt(match[1], 10);
-        if (!isNaN(val) && val > maxSeq) {
+        // Sequential numbers in a month start from 1, 2, ...
+        // Ignore legacy random numbers (>= 1000) so they don't corrupt the sequence
+        if (!isNaN(val) && val < 1000 && val > maxSeq) {
           maxSeq = val;
         }
       }
     });
   }
-  return generateDocumentNumber('PP', maxSeq + 1);
+
+  const nextSeq = maxSeq + 1;
+  return generateDocumentNumber('PP', nextSeq, date);
 };
 
-export const generateOrderNumber = (existingOrders: any[] = []): string => {
-  let maxSeq = 5; // Start sequence at 6 (PPSP06)
+export const generateOrderNumber = (existingOrders: any[] = [], date: Date = new Date()): string => {
+  const monthCode = MONTH_CODES[date.getMonth()] || 'OC';
+  let altMonthCode = '';
+  if (monthCode === 'NO') altMonthCode = '|NV';
+  else if (monthCode === 'SE') altMonthCode = '|SP';
+  else if (monthCode === 'FE') altMonthCode = '|FB';
+  else if (monthCode === 'DE') altMonthCode = '|DC';
+
+  const monthPattern = monthCode === 'OC' ? '(?:OC|0C)' : `(?:${monthCode}${altMonthCode})`;
+  const regex = new RegExp(`^PP${monthPattern}(\\d+)$`, 'i');
+
+  let maxSeq = 0;
   if (Array.isArray(existingOrders)) {
     existingOrders.forEach(o => {
       const num = typeof o === 'string' ? o : (o?.orderNumber || o?.order_number || '');
-      const match = num.match(/(\d+)$/);
+      if (!num) return;
+      const match = num.trim().match(regex);
       if (match) {
         const val = parseInt(match[1], 10);
-        if (!isNaN(val) && val > maxSeq) {
+        // Sequential numbers in a month start from 1, 2, ...
+        // Ignore legacy random numbers (>= 1000) so they don't corrupt the sequence
+        if (!isNaN(val) && val < 1000 && val > maxSeq) {
           maxSeq = val;
         }
       }
     });
   }
-  return generateDocumentNumber('PP', maxSeq + 1);
+
+  const nextSeq = maxSeq + 1;
+  return generateDocumentNumber('PP', nextSeq, date);
 };
 
 export const recalculateOrderAmounts = (services: any[], gstSlab: number, taxType: 'Inclusive' | 'Exclusive') => {

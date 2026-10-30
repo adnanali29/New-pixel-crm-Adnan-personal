@@ -748,6 +748,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateOrder = async (id: string, data: Partial<Order>) => {
     const updateData: any = {};
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.orderNumber !== undefined) updateData.order_number = data.orderNumber;
     if (data.companyName !== undefined) updateData.company_name = data.companyName;
     if (data.contactName !== undefined) updateData.contact_name = data.contactName;
     if (data.pocName !== undefined) updateData.poc_name = data.pocName;

@@ -277,7 +277,7 @@ export default function OrderPage() {
         <EditOrderModal
           order={editOrder}
           onClose={() => setEditId(null)}
-          onSave={async (services: OrderService[]) => {
+          onSave={async (services: OrderService[], newOrderNum?: string) => {
             try {
               const activeServices = services.filter((s) => s.status === 'active');
               const totalAmount = activeServices.reduce((sum: number, s: any) => sum + s.totalPrice * s.quantity, 0);
@@ -285,7 +285,15 @@ export default function OrderPage() {
               const gstAmount = activeServices.reduce((sum: number, s: any) => sum + s.gstAmount * s.quantity, 0);
               const pendingAmount = Math.max(0, totalAmount - editOrder.paidAmount);
               const refundDue = Math.max(0, editOrder.paidAmount - totalAmount);
-              await updateOrder(editId!, { services, totalAmount, baseAmount, gstAmount, pendingAmount, refundDue });
+              await updateOrder(editId!, {
+                services,
+                totalAmount,
+                baseAmount,
+                gstAmount,
+                pendingAmount,
+                refundDue,
+                ...(newOrderNum ? { orderNumber: newOrderNum.trim() } : {}),
+              });
               showToast('Order updated successfully');
               setEditId(null);
             } catch (err: any) {
@@ -695,6 +703,7 @@ function RefundModal({ order, onClose, onSubmit }: any) {
 
 function EditOrderModal({ order, onClose, onSave }: any) {
   const { services } = useApp();
+  const [orderNumber, setOrderNumber] = useState(order.orderNumber || '');
   const [items, setItems] = useState(
     order.services.map((s: any) => ({
       ...s,
@@ -739,7 +748,23 @@ function EditOrderModal({ order, onClose, onSave }: any) {
   return (
     <Modal title="Edit Order" onClose={onClose} wide>
       <div className="space-y-4">
-        <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg">Tax Type: <strong>{order.taxType}</strong> · Editing will recalculate amounts.</p>
+        <div className="p-3 bg-slate-50 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
+          <div className="flex-1 max-w-xs">
+            <label className="text-xs font-semibold text-slate-600 block mb-1">Order / PO Number</label>
+            <input
+              type="text"
+              value={orderNumber}
+              onChange={e => setOrderNumber(e.target.value)}
+              className="border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm font-mono w-full focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+              placeholder="e.g. PPOC01"
+            />
+          </div>
+          <p className="text-slate-600 text-xs sm:text-right">
+            Tax Type: <strong className="text-slate-800">{order.taxType}</strong>
+            <br />
+            <span className="text-slate-400">Editing will recalculate amounts.</span>
+          </p>
+        </div>
 
         {items.map((item: any, idx: number) => (
           <div key={item.id} className={`p-4 border rounded-xl space-y-3 ${item.status === 'canceled' ? 'opacity-50 bg-slate-50 border-slate-200' : 'border-slate-200'}`}>
@@ -820,7 +845,7 @@ function EditOrderModal({ order, onClose, onSave }: any) {
 
         <div className="flex justify-end gap-3">
           <button onClick={onClose} className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 text-sm">Cancel</button>
-          <button onClick={() => onSave(items)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Save Changes</button>
+          <button onClick={() => onSave(items, orderNumber)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700">Save Changes</button>
         </div>
       </div>
     </Modal>
