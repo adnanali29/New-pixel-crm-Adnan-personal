@@ -21,6 +21,43 @@ export default function OrderPage() {
   const [refundId, setRefundId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<{ id: string; type: 'po' | 'pi' | 'tax' } | null>(null);
+
+  const handleDownloadPO = async (order: Order) => {
+    setDownloading({ id: order.id, type: 'po' });
+    try {
+      const ok = await generatePOPDF(order, settings.poPdfSettings, quotations);
+      if (ok) showToast(`Purchase Order (${order.orderNumber}) downloaded successfully!`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to download PO', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadPI = async (order: Order) => {
+    setDownloading({ id: order.id, type: 'pi' });
+    try {
+      const ok = await generatePIPDF(order, settings.piPdfSettings, quotations);
+      if (ok) showToast(`Proforma Invoice (${order.orderNumber}) downloaded successfully!`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to download PI', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleDownloadTax = async (order: Order) => {
+    setDownloading({ id: order.id, type: 'tax' });
+    try {
+      const ok = await generateTaxInvoicePDF(order, settings.taxInvoicePdfSettings, quotations);
+      if (ok) showToast(`Tax Invoice (${order.orderNumber}) downloaded successfully!`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to download Tax Invoice', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const active = orders.filter(o => o.status === 'active');
   const dead = orders.filter(o => o.status === 'dead');
@@ -155,9 +192,10 @@ export default function OrderPage() {
                 }
               }
             }}
-            onDownloadPO={() => generatePOPDF(order, settings.poPdfSettings, quotations)}
-            onDownloadPI={() => generatePIPDF(order, settings.piPdfSettings, quotations)}
-            onDownloadTax={() => generateTaxInvoicePDF(order, settings.taxInvoicePdfSettings, quotations)}
+            onDownloadPO={() => handleDownloadPO(order)}
+            onDownloadPI={() => handleDownloadPI(order)}
+            onDownloadTax={() => handleDownloadTax(order)}
+            downloadingType={downloading?.id === order.id ? downloading.type : null}
           />
         ))}
 
@@ -178,7 +216,8 @@ export default function OrderPage() {
           order={detailOrder}
           onClose={() => setDetailId(null)}
           onEdit={() => { setDetailId(null); setEditId(detailId); }}
-          onPI={() => generatePIPDF(detailOrder, settings.piPdfSettings, quotations)}
+          onPI={() => handleDownloadPI(detailOrder)}
+          isDownloadingPI={downloading?.id === detailOrder.id && downloading.type === 'pi'}
         />
       )}
 
@@ -259,7 +298,7 @@ export default function OrderPage() {
   );
 }
 
-function OrderCard({ order, onDetail, onPay, onCancel, onRefund, onEdit, onRestore, onDelete, onDownloadPO, onDownloadPI, onDownloadTax }: any) {
+function OrderCard({ order, onDetail, onPay, onCancel, onRefund, onEdit, onRestore, onDelete, onDownloadPO, onDownloadPI, onDownloadTax, downloadingType }: any) {
   const baseAmount = Number(order.baseAmount) || 0;
   const gstAmount = Number(order.gstAmount) || 0;
   const totalAmount = Number(order.totalAmount) || 0;
@@ -348,9 +387,33 @@ function OrderCard({ order, onDetail, onPay, onCancel, onRefund, onEdit, onResto
                 <DollarSign size={12} /> Refund
               </button>
             )}
-            <button onClick={onDownloadPO} className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"><Download size={12} /> PO</button>
-            <button onClick={onDownloadPI} className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"><FileText size={12} /> PI</button>
-            <button onClick={onDownloadTax} className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors"><FileText size={12} /> Tax</button>
+            <button
+              type="button"
+              disabled={!!downloadingType}
+              onClick={onDownloadPO}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50"
+              title="Download Purchase Order"
+            >
+              {downloadingType === 'po' ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />} PO
+            </button>
+            <button
+              type="button"
+              disabled={!!downloadingType}
+              onClick={onDownloadPI}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors disabled:opacity-50"
+              title="Download Proforma Invoice"
+            >
+              {downloadingType === 'pi' ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} PI
+            </button>
+            <button
+              type="button"
+              disabled={!!downloadingType}
+              onClick={onDownloadTax}
+              className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors disabled:opacity-50"
+              title="Download Tax Invoice"
+            >
+              {downloadingType === 'tax' ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} Tax
+            </button>
             <button onClick={onCancel} className="flex items-center gap-1 px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"><XCircle size={12} /> Cancel</button>
           </>
         ) : (
@@ -764,7 +827,7 @@ function EditOrderModal({ order, onClose, onSave }: any) {
   );
 }
 
-function OrderDetailModal({ order, onClose, onEdit, onPI }: any) {
+function OrderDetailModal({ order, onClose, onEdit, onPI, isDownloadingPI }: any) {
   const activeServices = order.services.filter((s: OrderService) => s.status === 'active');
   const paidPct = order.totalAmount > 0 ? Math.min(100, (order.paidAmount / order.totalAmount) * 100) : 0;
 
@@ -848,8 +911,13 @@ function OrderDetailModal({ order, onClose, onEdit, onPI }: any) {
           <button onClick={onEdit} className="px-3 py-2 border border-slate-200 rounded-lg text-slate-600 text-sm flex items-center gap-1.5 hover:bg-slate-50">
             <Edit2 size={14} /> Edit
           </button>
-          <button onClick={onPI} className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-indigo-700">
-            <FileText size={14} /> Proforma Invoice
+          <button
+            type="button"
+            disabled={isDownloadingPI}
+            onClick={onPI}
+            className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-indigo-700 disabled:opacity-50"
+          >
+            {isDownloadingPI ? <Loader2 size={14} className="animate-spin" /> : <FileText size={14} />} Proforma Invoice
           </button>
         </div>
       </div>

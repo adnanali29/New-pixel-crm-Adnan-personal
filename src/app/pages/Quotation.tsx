@@ -31,12 +31,22 @@ export default function QuotationPage() {
   const detailQ = quotations.find(q => q.id === detailId);
   const editQ = quotations.find(q => q.id === editId);
 
+  const [downloadId, setDownloadId] = useState<string | null>(null);
+
   function getServiceLabel(item: QuotationItem) {
     return `${item.serviceName}${item.subServiceName ? ` / ${item.subServiceName}` : ''}`;
   }
 
-  function handleDownload(q: Quotation) {
-    generateQuotationPDF(q, settings.quotePdfSettings);
+  async function handleDownload(q: Quotation) {
+    setDownloadId(q.id);
+    try {
+      const ok = await generateQuotationPDF(q, settings.quotePdfSettings);
+      if (ok) showToast(`Quotation (${q.quoteNumber}) downloaded successfully!`);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to download Quotation', 'error');
+    } finally {
+      setDownloadId(null);
+    }
   }
 
   return (
@@ -164,8 +174,14 @@ export default function QuotationPage() {
                           <button onClick={() => setEditId(q.id)} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-indigo-100">
                             <Edit2 size={16} />
                           </button>
-                          <button onClick={() => handleDownload(q)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-emerald-100">
-                            <Download size={16} />
+                          <button
+                            type="button"
+                            disabled={downloadId === q.id}
+                            onClick={() => handleDownload(q)}
+                            className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-white rounded-lg shadow-sm transition-all border border-transparent hover:border-emerald-100 disabled:opacity-50"
+                            title="Download Quotation PDF"
+                          >
+                            {downloadId === q.id ? <Loader2 size={16} className="animate-spin text-emerald-600" /> : <Download size={16} />}
                           </button>
                           <button onClick={() => setConvertId(q.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-600 text-[11px] font-bold rounded-lg transition-all border border-amber-100 uppercase tracking-wide">
                             <ArrowRight size={14} /> Order
@@ -228,6 +244,7 @@ export default function QuotationPage() {
           onClose={() => setDetailId(null)}
           onEdit={() => { setDetailId(null); setEditId(detailId); }}
           onDownload={() => handleDownload(detailQ)}
+          isDownloading={downloadId === detailQ.id}
           onConvert={() => { setDetailId(null); setConvertId(detailId); }}
           onCancel={async () => {
             try {
@@ -281,7 +298,7 @@ export default function QuotationPage() {
   );
 }
 
-function QuotationDetailModal({ quotation, onClose, onEdit, onDownload, onConvert, onCancel }: any) {
+function QuotationDetailModal({ quotation, onClose, onEdit, onDownload, onConvert, onCancel, isDownloading }: any) {
   return (
     <Modal title="Quotation Details" onClose={onClose} wide>
       <div className="space-y-4">
@@ -335,8 +352,13 @@ function QuotationDetailModal({ quotation, onClose, onEdit, onDownload, onConver
               <button onClick={onEdit} className="px-3 py-2 border border-slate-200 rounded-lg text-slate-600 text-sm flex items-center gap-1.5 hover:bg-slate-50">
                 <Edit2 size={14} /> Edit
               </button>
-              <button onClick={onDownload} className="px-3 py-2 border border-emerald-200 text-emerald-700 rounded-lg text-sm flex items-center gap-1.5 hover:bg-emerald-50">
-                <Download size={14} /> Download PDF
+              <button
+                type="button"
+                disabled={isDownloading}
+                onClick={onDownload}
+                className="px-3 py-2 border border-emerald-200 text-emerald-700 rounded-lg text-sm flex items-center gap-1.5 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                {isDownloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Download PDF
               </button>
               <button onClick={onConvert} className="px-3 py-2 bg-amber-500 text-white rounded-lg text-sm flex items-center gap-1.5 hover:bg-amber-600">
                 <ArrowRight size={14} /> Convert to Order

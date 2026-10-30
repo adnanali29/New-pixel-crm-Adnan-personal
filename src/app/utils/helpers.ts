@@ -43,16 +43,19 @@ export const numberToWords = (num: number): string => {
   const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
 
   const convertHundreds = (n: number): string => {
-    if (n === 0) return '';
-    if (n < 20) return ones[n] + ' ';
-    if (n < 100) return tens[Math.floor(n / 10)] + ' ' + ones[n % 10] + ' ';
-    return ones[Math.floor(n / 100)] + ' Hundred ' + convertHundreds(n % 100);
+    n = Math.floor(n);
+    if (isNaN(n) || n <= 0) return '';
+    if (n < 20) return ones[n] ? ones[n] + ' ' : '';
+    if (n < 100) return tens[Math.floor(n / 10)] + ' ' + (ones[n % 10] ? ones[n % 10] + ' ' : '');
+    return (ones[Math.floor(n / 100)] ? ones[Math.floor(n / 100)] + ' Hundred ' : '') + convertHundreds(n % 100);
   };
 
-  if (num === 0) return 'Zero Rupees Only';
+  if (num === null || num === undefined || isNaN(num) || num <= 0) return 'Zero Rupees Only';
+  const cleanNum = Math.abs(Number(num));
+  if (!isFinite(cleanNum) || cleanNum === 0) return 'Zero Rupees Only';
 
-  const intPart = Math.floor(num);
-  const decPart = Math.round((num - intPart) * 100);
+  const intPart = Math.floor(cleanNum);
+  const decPart = Math.round((cleanNum - intPart) * 100);
 
   let result = '';
   if (intPart >= 10000000) {

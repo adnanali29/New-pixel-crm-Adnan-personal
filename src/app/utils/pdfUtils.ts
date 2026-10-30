@@ -123,18 +123,26 @@ function addBackgroundDesign(doc: jsPDF, theme: PDFTheme) {
  */
 function drawHeaderLogo(doc: jsPDF, settings: PDFSettings, x: number, y: number, theme: PDFTheme): { width: number; height: number } {
   const logoSquareSize = 24;
-  const logoData = settings.logoUrl || DEFAULT_LOGO_BASE64;
+  // Ensure we only pass inline data URIs to doc.addImage, never URLs (which trigger synchronous blocking XHR in jsPDF)
+  const isDataUri = (s?: string) => typeof s === 'string' && s.trim().startsWith('data:image/');
+  const logoData = isDataUri(settings.logoUrl)
+    ? settings.logoUrl
+    : (isDataUri(DEFAULT_LOGO_BASE64) ? DEFAULT_LOGO_BASE64 : null);
 
-  try {
-    doc.addImage(logoData, 'PNG', x, y, logoSquareSize, logoSquareSize, undefined, 'FAST');
-    return { width: logoSquareSize + 4, height: logoSquareSize };
-  } catch {
-    doc.setFontSize(15);
-    doc.setTextColor(...theme.primary);
-    doc.setFont('helvetica', 'bold');
-    doc.text(settings.companyName || 'PIXEL WEB PAGES', x, y + 10);
-    return { width: 60, height: 12 };
+  if (logoData) {
+    try {
+      doc.addImage(logoData, 'PNG', x, y, logoSquareSize, logoSquareSize, undefined, 'FAST');
+      return { width: logoSquareSize + 4, height: logoSquareSize };
+    } catch (e) {
+      console.warn('Could not render logo image in PDF:', e);
+    }
   }
+
+  doc.setFontSize(15);
+  doc.setTextColor(...theme.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text(settings.companyName || 'PIXEL WEB PAGES', x, y + 10);
+  return { width: 60, height: 12 };
 }
 
 function addHeader(doc: jsPDF, rawSettings: PDFSettings, title: string, docNumber: string, docDate: string, theme: PDFTheme): number {
@@ -435,6 +443,7 @@ function addItemsTable(doc: jsPDF, items: any[], gstSlab: number, taxType: strin
       lineWidth: 0.3,
       lineColor: [203, 213, 225], // Slate-300 grid lines for body
       valign: 'middle',
+      overflow: 'linebreak',
     },
     headStyles: {
       fillColor: [...theme.primary], // Theme Primary Color for Table Header
@@ -449,17 +458,19 @@ function addItemsTable(doc: jsPDF, items: any[], gstSlab: number, taxType: strin
     },
     alternateRowStyles: { fillColor: [...theme.lightBg] },
     columnStyles: {
-      0: { cellWidth: 6, halign: 'center' },
-      1: { cellWidth: 52, halign: 'left' },
+      0: { cellWidth: 7, halign: 'center' },
+      1: { cellWidth: 'auto', halign: 'left' },
       2: { cellWidth: 17, halign: 'center' }, // 17mm guarantees "HSN/SAC" on 1 line!
-      3: { cellWidth: 9, halign: 'center' },  // 9mm guarantees "Qty" on 1 line!
-      4: { cellWidth: 21, halign: 'right' },  // 21mm guarantees "Rs.111.00" on 1 line!
+      3: { cellWidth: 10, halign: 'center' }, // 10mm guarantees "Qty" on 1 line!
+      4: { cellWidth: 20, halign: 'right' },  // 20mm guarantees "Rs.111.00" on 1 line!
       5: { cellWidth: 21, halign: 'right' },  // 21mm guarantees "Rs.111.00" on 1 line!
       6: { cellWidth: 11, halign: 'center' }, // 11mm guarantees "GST%" on 1 line!
       7: { cellWidth: 21, halign: 'right' },  // 21mm guarantees "Rs.19.98" on 1 line!
-      8: { cellWidth: 28, halign: 'right' },  // 28mm guarantees "Rs.130.98" on 1 line!
+      8: { cellWidth: 26, halign: 'right' },  // 26mm guarantees "Rs.130.98" on 1 line!
     },
-    margin: { left: 12, right: 12 },
+    margin: { left: 12, right: 12, top: 12, bottom: 12 },
+    tableWidth: 186,
+    horizontalPageBreak: false,
   });
 
   return (doc as any).lastAutoTable.finalY + 6;
@@ -473,11 +484,19 @@ function addSummaryBlock(doc: jsPDF, baseAmount: number, gstAmount: number, tota
   bankSettings?: PDFSettings, order?: Order, theme: PDFTheme = THEMES['QUOTATION']): number {
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const isSameState = supplierState && clientState && supplierState.toLowerCase() === clientState.toLowerCase();
 
-  const safeBase = Number(baseAmount || 0);
-  const safeGst = Number(gstAmount || 0);
-  const safeTotal = Number(totalAmount || 0);
+  const safeBase = Math.max(0, Number(baseAmount) || 0);
+  const safeGst = Math.max(0, Number(gstAmount) || 0);
+  const safeTotal = Math.max(0, Number(totalAmount) || 0);
+
+  // If table ended too low on page to fit summary and signatures, start clean on a new page
+  if (startY + 75 > pageHeight - 15) {
+    doc.addPage();
+    addBackgroundDesign(doc, theme);
+    startY = 20;
+  }
 
   // Geometry Coordinates
   const leftX = 12;
@@ -652,9 +671,11 @@ function addDeclarationAndSignatory(doc: jsPDF, rawSettings: PDFSettings, startY
   try {
     const sigImgSquareSize = 15; // 15mm x 15mm Perfect Square
     const sigImgX = sigBoxX + (sigBoxWidth - sigImgSquareSize) / 2;
-    doc.addImage(DEFAULT_SIGNATURE_BASE64, 'PNG', sigImgX, dy + 5.5, sigImgSquareSize, sigImgSquareSize, undefined, 'FAST');
-  } catch {
-    // Fallback space for signature
+    if (typeof DEFAULT_SIGNATURE_BASE64 === 'string' && DEFAULT_SIGNATURE_BASE64.startsWith('data:image/')) {
+      doc.addImage(DEFAULT_SIGNATURE_BASE64, 'PNG', sigImgX, dy + 5.5, sigImgSquareSize, sigImgSquareSize, undefined, 'FAST');
+    }
+  } catch (e) {
+    console.warn('Could not render signature image in PDF:', e);
   }
 
   doc.setFont('helvetica', 'bold');
@@ -689,7 +710,33 @@ function addFooter(doc: jsPDF, notes?: string) {
 
 // ─── EXPORT PDF GENERATION FUNCTIONS ──────────────────────────────────────────
 
-export function generateQuotationPDF(quotation: Quotation, rawSettings?: PDFSettings) {
+function savePDF(doc: jsPDF, filename: string) {
+  try {
+    doc.save(filename);
+  } catch (err) {
+    console.warn('doc.save failed, falling back to direct blob download:', err);
+    try {
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (fallbackErr) {
+      console.error('Direct blob download failed:', fallbackErr);
+      throw fallbackErr;
+    }
+  }
+}
+
+export async function generateQuotationPDF(quotation: Quotation, rawSettings?: PDFSettings): Promise<boolean> {
+  // Yield main thread so any button spinner can render
+  await new Promise(resolve => setTimeout(resolve, 20));
   try {
     const settings = getSafeSettings(rawSettings, 'QUOTATION');
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -719,14 +766,18 @@ export function generateQuotationPDF(quotation: Quotation, rawSettings?: PDFSett
 
     addDeclarationAndSignatory(doc, settings, y3, theme);
     addFooter(doc);
-    doc.save(`Quotation_${quotation.quoteNumber || 'Document'}.pdf`);
+    savePDF(doc, `Quotation_${quotation.quoteNumber || 'Document'}.pdf`);
+    return true;
   } catch (err) {
     console.error('Error generating Quotation PDF:', err);
     alert('Failed to generate Quotation PDF. Please check console for details.');
+    return false;
   }
 }
 
-export function generatePOPDF(order: Order, rawSettings?: PDFSettings, quotations?: Quotation[]) {
+export async function generatePOPDF(order: Order, rawSettings?: PDFSettings, quotations?: Quotation[]): Promise<boolean> {
+  // Yield main thread so any button spinner can render
+  await new Promise(resolve => setTimeout(resolve, 20));
   try {
     const settings = getSafeSettings(rawSettings, 'PURCHASE ORDER');
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -756,14 +807,18 @@ export function generatePOPDF(order: Order, rawSettings?: PDFSettings, quotation
 
     addDeclarationAndSignatory(doc, settings, y3, theme);
     addFooter(doc);
-    doc.save(`PO_${order.orderNumber || 'Document'}.pdf`);
+    savePDF(doc, `PO_${order.orderNumber || 'Document'}.pdf`);
+    return true;
   } catch (err) {
     console.error('Error generating Purchase Order PDF:', err);
     alert('Failed to generate Purchase Order PDF. Please check console for details.');
+    return false;
   }
 }
 
-export function generatePIPDF(order: Order, rawSettings?: PDFSettings, quotations?: Quotation[]) {
+export async function generatePIPDF(order: Order, rawSettings?: PDFSettings, quotations?: Quotation[]): Promise<boolean> {
+  // Yield main thread so any button spinner can render
+  await new Promise(resolve => setTimeout(resolve, 20));
   try {
     const settings = getSafeSettings(rawSettings, 'PROFORMA INVOICE');
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -793,14 +848,18 @@ export function generatePIPDF(order: Order, rawSettings?: PDFSettings, quotation
 
     addDeclarationAndSignatory(doc, settings, y3, theme);
     addFooter(doc);
-    doc.save(`PI_${order.orderNumber || 'Document'}.pdf`);
+    savePDF(doc, `PI_${order.orderNumber || 'Document'}.pdf`);
+    return true;
   } catch (err) {
     console.error('Error generating Proforma Invoice PDF:', err);
     alert('Failed to generate Proforma Invoice PDF. Please check console for details.');
+    return false;
   }
 }
 
-export function generateTaxInvoicePDF(order: Order, rawSettings?: PDFSettings, quotations?: Quotation[]) {
+export async function generateTaxInvoicePDF(order: Order, rawSettings?: PDFSettings, quotations?: Quotation[]): Promise<boolean> {
+  // Yield main thread so any button spinner can render
+  await new Promise(resolve => setTimeout(resolve, 20));
   try {
     const settings = getSafeSettings(rawSettings, 'TAX INVOICE');
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -830,9 +889,11 @@ export function generateTaxInvoicePDF(order: Order, rawSettings?: PDFSettings, q
 
     addDeclarationAndSignatory(doc, settings, y3, theme);
     addFooter(doc);
-    doc.save(`TaxInvoice_${order.orderNumber || 'Document'}.pdf`);
+    savePDF(doc, `TaxInvoice_${order.orderNumber || 'Document'}.pdf`);
+    return true;
   } catch (err) {
     console.error('Error generating Tax Invoice PDF:', err);
     alert('Failed to generate Tax Invoice PDF. Please check console for details.');
+    return false;
   }
 }
